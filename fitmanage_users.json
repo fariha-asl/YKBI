@@ -1,0 +1,22 @@
+{
+  "admin": {
+    "password": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+    "full_name": "Ashley Admin",
+    "role": "Administrator",
+    "security_q": "What city were you born in?",
+    "security_a": "de90643718108ec9a93cc6905f2b976297505a8abeac37b747132877fb32fb8d"
+  },
+  "trainer1": {
+    "password": "1012bdfaa3e4637c13dacd6428d73d6b4a622dc0487135c9862ac6eabcb24b3a",
+    "full_name": "Oliver Clark",
+    "role": "Trainer",
+    "security_q": "What is your pet's name?",
+    "security_a": "e2284dc3b5535645288cde2bad818404be728fb8c9f70b055c0b52023b0ff0a0"
+  },
+  "fariha79": {
+    "password": "9bfce76df06bf3dc2167e9b354e49d554ebc33cf1620dea471470957f583a839",
+    "full_name": "Fariha Hossain",
+    "role": "Member",
+    "whatsapp": "+8801713429948"
+  }
+}
