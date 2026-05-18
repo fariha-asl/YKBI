@@ -5,7 +5,7 @@ const mongoose    = require("mongoose");
 const cors        = require("cors");
 const rateLimit   = require("express-rate-limit");
 
-const authRoutes  = require("./routes/auth");
+const authRoutes = require("../files/routes/auth");
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
