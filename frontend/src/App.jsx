@@ -1,4 +1,5 @@
 // frontend/src/App.jsx
+// Vercel deployment trigger update
 import { Routes, Route, Navigate } from "react-router-dom";
 import LoginPage    from "./pages/LoginPage";
 import Dashboard    from "./pages/Dashboard";
