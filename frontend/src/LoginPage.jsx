@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import LoginPage from "./LoginPage";
-import api from "../api";
+import api from "./api";
 
 
 /* ─── tiny helpers ─────────────────────────────────────────────────────────── */
