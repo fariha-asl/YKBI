@@ -573,9 +573,9 @@ function ForgotView({ onBack, showToast }) {
 }
 
 /* ─── MAIN PAGE ─────────────────────────────────────────────────────────────── */
-//export default function LoginPage() {
-  //const [view, setView] = useState("login"); // "login" | "register" | "forgot"
-  //const [toast, showToast] = useToast();
+export default function LoginPage() {
+  const [view, setView] = useState("login"); // "login" | "register" | "forgot"
+  const [toast, showToast] = useToast();
 
   return (
     <div style={{
@@ -725,4 +725,4 @@ function ForgotView({ onBack, showToast }) {
       <Toast toast={toast} />
     </div>
   );
-//}
+}
