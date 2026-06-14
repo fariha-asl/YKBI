@@ -1,9 +1,12 @@
 // frontend/src/App.jsx
 //Vercel deployment trigger update
 // Force vercel to rebuild this layout
+
 import { Routes, Route, Navigate } from "react-router-dom";
-import LoginPage    from "./pages/LoginPage";
-import Dashboard    from "./pages/Dashboard";
+import LoginPage from "./LoginPage";
+import Dashboard from "./Dashboard";
+//import LoginPage    from "./pages/LoginPage";
+//import Dashboard    from "./pages/Dashboard";
 
 const isAuthenticated = () => !!localStorage.getItem("fm_token");
 
