@@ -6,4 +6,6 @@ router.post("/register",        controller.register);
 router.post("/login",           controller.login);
 router.post("/forgot-password", controller.forgotPassword);
 
+router.get("/me", require("../middleware/auth"), controller.getMe);
+
 module.exports = router;
