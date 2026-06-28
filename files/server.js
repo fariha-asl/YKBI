@@ -3,7 +3,6 @@ const express    = require("express");
 const mongoose   = require("mongoose");
 const cors       = require("cors");
 const rateLimit  = require("express-rate-limit");
-const authRoutes = require("./routes/auth");
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
@@ -13,11 +12,8 @@ app.use(cors({
     if (!origin) return callback(null, true);
     if (
       /^https:\/\/ykbi.*\.vercel\.app$/.test(origin) ||
-      origin === "http://localhost:5173" ||
-      origin === process.env.CLIENT_ORIGIN
-    ) {
-      return callback(null, true);
-    }
+      origin === "http://localhost:5173"
+    ) return callback(null, true);
     callback(new Error("CORS blocked: " + origin));
   },
   credentials: true,
@@ -26,12 +22,11 @@ app.use(cors({
 app.use(express.json({ limit: "10kb" }));
 
 app.use("/api/auth", rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
+  windowMs: 15 * 60 * 1000, max: 20,
   message: { success: false, message: "Too many requests." },
 }));
 
-app.use("/api/auth", authRoutes);
+app.use("/api/auth", require("./routes/auth"));
 
 app.get("/health", (_req, res) =>
   res.json({ status: "ok", time: new Date().toISOString() })
@@ -44,9 +39,7 @@ app.use((_req, res) =>
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log("✅  MongoDB connected");
-    app.listen(PORT, () =>
-      console.log(`🚀  Server running on port ${PORT}`)
-    );
+    app.listen(PORT, () => console.log(`🚀  Server running on port ${PORT}`));
   })
   .catch((err) => {
     console.error("❌  MongoDB connection error:", err.message);
