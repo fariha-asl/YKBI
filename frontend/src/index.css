@@ -1,0 +1,54 @@
+/* frontend/src/index.css */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --acc:       #1A6B4A;
+  --acc-h:     #155C3E;
+  --acc2:      #22C55E;
+  --wa:        #25D366;
+  --dark:      #0D1117;
+  --panel-l:   #111827;
+  --panel-r:   #F8FAFC;
+  --text-d:    #0F172A;
+  --text-m:    #64748B;
+  --text-l:    #94A3B8;
+  --border:    #E2E8F0;
+  --red:       #EF4444;
+  --ibg:       #FFFFFF;
+  --radius:    12px;
+  --shadow:    0 4px 24px rgba(0,0,0,.08);
+}
+
+html, body, #root { height: 100%; }
+body {
+  font-family: "DM Sans", sans-serif;
+  background: var(--panel-r);
+  color: var(--text-d);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+/* ── Keyframes ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+@keyframes pulse-dot {
+  0%,100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.35); opacity: .6; }
+}
