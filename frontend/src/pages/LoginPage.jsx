@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "./api";
+import api from "../api";
 
 /* ─── tiny helpers ─────────────────────────────────────────────────────────── */
 const only_digits = (s) => s.replace(/\D/g, "");

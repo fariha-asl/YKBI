@@ -587,12 +587,34 @@ function TrainerProfile({ trainer, onUpdate }) {
   );
 }
 
+// ── localStorage helpers ─────────────────────────────────────────────────────
+const STORAGE_KEY = "fm_trainers";
+
+const loadTrainers = () => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch(e) {}
+  // First time: save defaults then return them
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_TRAINERS));
+  return INITIAL_TRAINERS;
+};
+
+const saveTrainers = (data) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch(e) {}
+};
+
 // ── MAIN TRAINER PAGE ─────────────────────────────────────────────────────────
 export default function TrainerPage() {
   const navigate = useNavigate();
   const [user, setUser]                 = useState(null);
-  const [trainers, setTrainers]         = useState(INITIAL_TRAINERS);
-  const [selectedTrainer, setSelected]  = useState(INITIAL_TRAINERS[0]);
+  const [trainers, setTrainers]         = useState(() => loadTrainers());
+  const [selectedTrainer, setSelected]  = useState(() => loadTrainers()[0]);
   const [showModal, setShowModal]       = useState(false);
   const [search, setSearch]             = useState("");
   const [activeNav, setActiveNav]       = useState("Trainers");
@@ -602,6 +624,10 @@ export default function TrainerPage() {
     const stored = localStorage.getItem("fm_user");
     if (!stored) { navigate("/login"); return; }
     setUser(JSON.parse(stored));
+    // Load latest trainers from storage on mount
+    const latest = loadTrainers();
+    setTrainers(latest);
+    setSelected(latest[0]);
   }, []);
 
   const logout = () => {
@@ -616,7 +642,11 @@ export default function TrainerPage() {
   };
 
   const handleSaveTrainer = (newTrainer, addAnother) => {
-    setTrainers(prev => [...prev, newTrainer]);
+    setTrainers(prev => {
+      const updated = [...prev, newTrainer];
+      saveTrainers(updated);   // ✅ persist to localStorage
+      return updated;
+    });
     if (!addAnother) {
       setShowModal(false);
       setSelected(newTrainer);
@@ -624,8 +654,23 @@ export default function TrainerPage() {
   };
 
   const handleUpdateTrainer = (updated) => {
-    setTrainers(prev => prev.map(t => t.id===updated.id ? updated : t));
+    setTrainers(prev => {
+      const newList = prev.map(t => t.id===updated.id ? updated : t);
+      saveTrainers(newList);   // ✅ persist to localStorage
+      return newList;
+    });
     setSelected(updated);
+  };
+
+  const handleDeleteTrainer = (id) => {
+    setTrainers(prev => {
+      const newList = prev.filter(t => t.id !== id);
+      saveTrainers(newList);   // ✅ persist to localStorage
+      if (selectedTrainer?.id === id) {
+        setSelected(newList[0] || null);
+      }
+      return newList;
+    });
   };
 
   const filtered = trainers.filter(t => {
