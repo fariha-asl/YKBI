@@ -1,7 +1,8 @@
 // frontend/src/pages/PackagesPage.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
+// ── Palette ───────────────────────────────────────────────────────────────────
 const C = {
   acc:"#1A6B4A", acc2:"#22C55E", dark:"#0F172A",
   nav:"#1C2333", bg:"#F4F6F9", card:"#FFFFFF",
@@ -19,20 +20,14 @@ const NAV_ITEMS = [
   { label:"Settings",  icon:"⚙️" },
 ];
 
-const SERVICE_TYPES = ["Classes","Appointments","Packages","Memberships"];
-const SERVICE_CATEGORIES = [
-  "Yoga & Pilates","Personal Training","Group Fitness",
-  "Bodybuilding","CrossFit","Swimming","Boxing","Nutrition",
-];
-const REVENUE_CATEGORIES = [
-  "Sales: Services","Sales: Products","Sales: Memberships","Sales: Other",
-];
-const FREQUENCY_OPTIONS = ["Unrestricted","Once per day","Once per week","Once per month"];
-const MEMBERSHIP_LINKS  = ["None","Basic","Premium","VIP"];
-const TRIGGER_OPTIONS   = ["From date of sale","From first use","From specific date"];
-const DURATION_UNITS    = ["Days","Weeks","Months","Years"];
+const SERVICE_TYPES      = ["Classes","Appointments","Packages","Memberships"];
+const SERVICE_CATEGORIES = ["Yoga & Pilates","Personal Training","Group Fitness","Bodybuilding","CrossFit","Swimming","Boxing","Nutrition"];
+const REVENUE_CATEGORIES = ["Sales: Services","Sales: Products","Sales: Memberships","Sales: Other"];
+const FREQUENCY_OPTIONS  = ["Unrestricted","Once per day","Once per week","Once per month"];
+const MEMBERSHIP_LINKS   = ["None","Basic","Premium","VIP"];
+const TRIGGER_OPTIONS    = ["From date of sale","From first use","From specific date"];
+const DURATION_UNITS     = ["Days","Weeks","Months","Years"];
 
-// ── Type badge color ──────────────────────────────────────────────────────────
 const TYPE_COLORS = {
   Classes:      { bg:"#DCFCE7", color:"#166534" },
   Appointments: { bg:"#DBEAFE", color:"#1e40af" },
@@ -40,39 +35,33 @@ const TYPE_COLORS = {
   Memberships:  { bg:"#F3E8FF", color:"#6b21a8" },
 };
 
-// ── Storage helpers ───────────────────────────────────────────────────────────
+// ── Storage ───────────────────────────────────────────────────────────────────
 const PKG_KEY = "fm_packages";
 
 const DEMO_PACKAGES = [
-  { id:1,  name:"1 Foundation",             sessions:1,  type:"Classes",      category:"Pilates",          price:2875, active:true,  sellOnline:true  },
-  { id:2,  name:"DT-1 Day a Week 1 Month",  sessions:12, type:"Appointments", category:"Personal Training", price:4200, active:true,  sellOnline:true  },
-  { id:3,  name:"DT-3 Days a Week 2 Months",sessions:5,  type:"Packages",     category:"Yoga",             price:450,  active:true,  sellOnline:false },
-  { id:4,  name:"DT-1 Day a Week 1 Month",  sessions:12, type:"Memberships",  category:"Personal Training", price:4200, active:true,  sellOnline:true  },
-  { id:5,  name:"DT-1 Day a Week 1 Month",  sessions:12, type:"Appointments", category:"Personal Training", price:4200, active:true,  sellOnline:true  },
-  { id:6,  name:"DT-1 Day a Week 1 Month",  sessions:12, type:"Memberships",  category:"Personal Training", price:4200, active:true,  sellOnline:true  },
-  { id:7,  name:"DT-1 Day a Week 1 Month",  sessions:12, type:"Memberships",  category:"Personal Training", price:4200, active:true,  sellOnline:true  },
-  { id:8,  name:"DT-1 Day a Week 1 Month",  sessions:12, type:"Memberships",  category:"Personal Training", price:4200, active:true,  sellOnline:true  },
-  { id:9,  name:"DT-1 Day a Week 1 Month",  sessions:12, type:"Memberships",  category:"Personal Training", price:4200, active:true,  sellOnline:true  },
-  { id:10, name:"DT-1 Day a Week 1 Month",  sessions:12, type:"Memberships",  category:"Personal Training", price:4200, active:true,  sellOnline:true  },
+  { id:1,  name:"1 Foundation",              sessions:1,  type:"Classes",      category:"Pilates",           price:2875, active:true,  sellOnline:true  },
+  { id:2,  name:"DT-1 Day a Week for 1 Month",sessions:12,type:"Appointments", category:"Personal Training", price:4200, active:true,  sellOnline:true  },
+  { id:3,  name:"DT-3 Days a Week 2 Months", sessions:5,  type:"Packages",     category:"Yoga",              price:450,  active:true,  sellOnline:false },
+  { id:4,  name:"DT-1 Day a Week for 1 Month",sessions:12,type:"Memberships",  category:"Personal Training", price:4200, active:true,  sellOnline:true  },
+  { id:5,  name:"DT-1 Day a Week for 1 Month",sessions:12,type:"Appointments", category:"Personal Training", price:4200, active:true,  sellOnline:true  },
+  { id:6,  name:"DT-1 Day a Week for 1 Month",sessions:12,type:"Memberships",  category:"Personal Training", price:4200, active:true,  sellOnline:true  },
+  { id:7,  name:"DT-1 Day a Week for 1 Month",sessions:12,type:"Memberships",  category:"Personal Training", price:4200, active:true,  sellOnline:true  },
+  { id:8,  name:"DT-1 Day a Week for 1 Month",sessions:12,type:"Memberships",  category:"Personal Training", price:4200, active:true,  sellOnline:true  },
+  { id:9,  name:"DT-1 Day a Week for 1 Month",sessions:12,type:"Memberships",  category:"Personal Training", price:4200, active:true,  sellOnline:true  },
+  { id:10, name:"DT-1 Day a Week for 1 Month",sessions:12,type:"Memberships",  category:"Personal Training", price:4200, active:true,  sellOnline:true  },
 ];
 
 const loadPackages = () => {
   try {
-    const saved = localStorage.getItem(PKG_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
+    const s = localStorage.getItem(PKG_KEY);
+    if (s) { const p = JSON.parse(s); if (Array.isArray(p) && p.length) return p; }
   } catch(e) {}
   localStorage.setItem(PKG_KEY, JSON.stringify(DEMO_PACKAGES));
   return DEMO_PACKAGES;
 };
+const savePackages = (d) => { try { localStorage.setItem(PKG_KEY, JSON.stringify(d)); } catch(e) {} };
 
-const savePackages = (data) => {
-  try { localStorage.setItem(PKG_KEY, JSON.stringify(data)); } catch(e) {}
-};
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Shared UI ─────────────────────────────────────────────────────────────────
 const Card = ({ children, style={} }) => (
   <div style={{ background:C.card, borderRadius:14,
     border:`1px solid ${C.border}`,
@@ -83,365 +72,507 @@ const Card = ({ children, style={} }) => (
 
 const Toggle = ({ on, onChange }) => (
   <div onClick={() => onChange(!on)} style={{
-    width:38, height:20, borderRadius:10,
-    background: on ? C.acc : "#E2E8F0",
-    cursor:"pointer", position:"relative", transition:"background .2s",
+    width:40, height:22, borderRadius:11,
+    background: on ? C.acc : "#CBD5E1",
+    cursor:"pointer", position:"relative",
+    transition:"background .2s", flexShrink:0,
   }}>
     <div style={{
-      width:16, height:16, borderRadius:"50%", background:"#fff",
-      position:"absolute", top:2, left: on ? 20 : 2,
-      transition:"left .2s", boxShadow:"0 1px 3px rgba(0,0,0,.2)",
+      width:18, height:18, borderRadius:"50%",
+      background:"#fff", position:"absolute",
+      top:2, left: on ? 20 : 2,
+      transition:"left .2s",
+      boxShadow:"0 1px 4px rgba(0,0,0,.25)",
     }}/>
   </div>
 );
 
-const Radio = ({ checked, onChange, label }) => (
-  <label style={{ display:"flex", alignItems:"center", gap:8,
-    cursor:"pointer", fontSize:13, color:C.dark }}>
-    <div onClick={onChange} style={{
-      width:16, height:16, borderRadius:"50%",
-      border:`2px solid ${checked ? C.acc : C.border}`,
-      display:"flex", alignItems:"center", justifyContent:"center",
-      cursor:"pointer", background:"#fff",
-      transition:"border-color .15s",
-    }}>
-      {checked && <div style={{ width:8, height:8,
-        borderRadius:"50%", background:C.acc }}/>}
-    </div>
-    {label}
-  </label>
-);
+// ── Top Nav (shared) ──────────────────────────────────────────────────────────
+function TopNav({ user, activeNav, onNavClick, onLogout }) {
+  return (
+    <>
+      <nav style={{
+        background:C.nav, height:54, display:"flex",
+        alignItems:"center", padding:"0 24px",
+        position:"sticky", top:0, zIndex:300,
+        boxShadow:"0 2px 8px rgba(0,0,0,.2)",
+      }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginRight:20 }}>
+          <svg width="28" height="28" viewBox="0 0 32 32">
+            <polygon points="16,2 30,16 16,30 2,16" fill={C.acc}/>
+            <polygon points="16,8 24,16 16,24 8,16" fill={C.acc2}/>
+          </svg>
+          <span style={{ color:"#fff", fontWeight:700, fontSize:17, fontFamily:"Georgia,serif" }}>FitManage</span>
+        </div>
+        <div style={{
+          background:"rgba(255,255,255,.1)", border:"1px solid rgba(255,255,255,.15)",
+          borderRadius:8, padding:"5px 14px", display:"flex",
+          alignItems:"center", gap:8, cursor:"pointer", marginRight:"auto",
+        }}>
+          <span style={{ color:"#CBD5E1", fontSize:13 }}>YKBI Health & Fitness</span>
+          <span style={{ color:C.tl, fontSize:10 }}>▾</span>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:18 }}>
+          <span style={{ fontSize:18, cursor:"pointer", opacity:.7 }}>⚙️</span>
+          <span style={{ fontSize:18, cursor:"pointer", opacity:.7 }}>🔍</span>
+          <div style={{ position:"relative", cursor:"pointer" }}>
+            <span style={{ fontSize:18 }}>🔔</span>
+            <div style={{
+              position:"absolute", top:-4, right:-4, width:16, height:16,
+              background:C.red, borderRadius:"50%", fontSize:9,
+              display:"flex", alignItems:"center", justifyContent:"center",
+              color:"#fff", fontWeight:700, border:"2px solid "+C.nav,
+            }}>3</div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}
+            onClick={onLogout}>
+            <div style={{
+              width:32, height:32, borderRadius:"50%", background:C.acc,
+              display:"flex", alignItems:"center", justifyContent:"center",
+              color:"#fff", fontSize:13, fontWeight:700,
+            }}>{user?.fullName?.[0] || "U"}</div>
+            <span style={{ color:"#E2E8F0", fontSize:13, fontWeight:600 }}>
+              {user?.fullName?.split(" ")[0] || "HABIB"}</span>
+            <span style={{ color:C.tl, fontSize:10 }}>▾</span>
+          </div>
+        </div>
+      </nav>
+
+      <div style={{
+        background:C.card, borderBottom:`1px solid ${C.border}`,
+        display:"flex", alignItems:"center", padding:"0 24px",
+        position:"sticky", top:54, zIndex:299,
+        boxShadow:"0 1px 3px rgba(0,0,0,.04)",
+      }}>
+        {NAV_ITEMS.map(({ label, icon }) => {
+          const active = label === activeNav;
+          return (
+            <button key={label} onClick={() => onNavClick(label)} style={{
+              background:"none", border:"none", cursor:"pointer",
+              padding:"13px 16px", fontSize:13,
+              fontWeight: active ? 700 : 500,
+              color: active ? C.acc : C.tm,
+              borderBottom: active ? `2.5px solid ${C.acc}` : "2.5px solid transparent",
+              fontFamily:"inherit", display:"flex", alignItems:"center", gap:5,
+              transition:"color .15s",
+            }}>
+              <span style={{ fontSize:14 }}>{icon}</span> {label}
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ADD NEW PACKAGE FORM
+// ADD PACKAGE FORM
 // ══════════════════════════════════════════════════════════════════════════════
-function AddPackageForm({ onSave, onDiscard }) {
+function AddPackageForm({ onSave, onDiscard, user, onNavClick, onLogout }) {
+
+  // ── All form state in ONE object — updated with spread, never recreated ──
   const [form, setForm] = useState({
     name:"", type:"Classes", category:"Yoga & Pilates",
     price:"", sellOnline:false,
-    duration:"12", durationUnit:"Months", trigger:"From date of sale",
+    duration:"12", durationUnit:"Months",
+    trigger:"From date of sale",
     sessionFreq:"Single Session",
     introOffer:"No", contractRequired:"No",
-    revenueCategory:"Sales: Services", frequencyOfUse:"Unrestricted",
-    membershipLink:"None", advancedSettings:"Standard",
-    active:true,
+    revenueCategory:"Sales: Services",
+    frequencyOfUse:"Unrestricted",
+    membershipLink:"None",
+    advancedSettings:"Standard",
   });
-  const [errors, setErrors] = useState({});
 
-  const set = (k) => (e) =>
-    setForm(f => ({ ...f, [k]: e.target.type==="checkbox" ? e.target.checked : e.target.value }));
-  const setV = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
+
+  // ── Stable field updater — useCallback prevents re-creation on render ──
+  const handleChange = useCallback((field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+    setErrors(prev => ({ ...prev, [field]: "" }));
+  }, []);
+
+  const handleBlur = useCallback((field) => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+  }, []);
 
   const validate = () => {
     const e = {};
     if (!form.name.trim())  e.name  = "Package name is required";
     if (!form.price)        e.price = "Price is required";
+    else if (isNaN(parseFloat(form.price))) e.price = "Enter a valid price";
     return e;
   };
 
-  const handleSave = (addAnother=false) => {
+  const handleSave = (addAnother = false) => {
     const e = validate();
+    setTouched({ name:true, price:true });
     if (Object.keys(e).length) { setErrors(e); return; }
+
     const pkg = {
       id: Date.now(),
-      name: form.name.trim(),
-      sessions: parseInt(form.duration) || 1,
-      type: form.type,
-      category: form.category,
-      price: parseFloat(form.price) || 0,
-      active: true,
-      sellOnline: form.sellOnline,
-      sessionFreq: form.sessionFreq,
-      introOffer: form.introOffer,
-      contractRequired: form.contractRequired,
-      revenueCategory: form.revenueCategory,
-      frequencyOfUse: form.frequencyOfUse,
-      membershipLink: form.membershipLink,
+      name:              form.name.trim(),
+      sessions:          parseInt(form.duration) || 1,
+      type:              form.type,
+      category:          form.category,
+      price:             parseFloat(form.price) || 0,
+      active:            true,
+      sellOnline:        form.sellOnline,
+      sessionFreq:       form.sessionFreq,
+      introOffer:        form.introOffer,
+      contractRequired:  form.contractRequired,
+      revenueCategory:   form.revenueCategory,
+      frequencyOfUse:    form.frequencyOfUse,
+      membershipLink:    form.membershipLink,
+      advancedSettings:  form.advancedSettings,
     };
+
     onSave(pkg, addAnother);
+
     if (addAnother) {
       setForm({
         name:"", type:"Classes", category:"Yoga & Pilates",
         price:"", sellOnline:false,
-        duration:"12", durationUnit:"Months", trigger:"From date of sale",
-        sessionFreq:"Single Session", introOffer:"No", contractRequired:"No",
+        duration:"12", durationUnit:"Months",
+        trigger:"From date of sale", sessionFreq:"Single Session",
+        introOffer:"No", contractRequired:"No",
         revenueCategory:"Sales: Services", frequencyOfUse:"Unrestricted",
-        membershipLink:"None", advancedSettings:"Standard", active:true,
+        membershipLink:"None", advancedSettings:"Standard",
       });
       setErrors({});
+      setTouched({});
     }
   };
 
-  const inputStyle = (err) => ({
-    width:"100%", border:`1.5px solid ${err ? C.red : C.border}`,
-    borderRadius:8, padding:"10px 14px", fontSize:13,
-    fontFamily:"inherit", color:C.dark, outline:"none",
-    background:"#fff", boxSizing:"border-box",
-    transition:"border-color .2s",
+  // ── Style helpers ─────────────────────────────────────────────────────────
+  const inputCls = (field) => ({
+    width:"100%", padding:"11px 14px", fontSize:14,
+    fontFamily:"inherit", color:C.dark,
+    border:`1.5px solid ${touched[field] && errors[field] ? C.red : C.border}`,
+    borderRadius:9, outline:"none", background:"#fff",
+    boxSizing:"border-box",
+    transition:"border-color .2s, box-shadow .2s",
   });
 
-  const labelStyle = {
-    display:"block", fontSize:11, fontWeight:700,
-    letterSpacing:".08em", textTransform:"uppercase",
-    color:C.tm, marginBottom:6,
+  const selectCls = {
+    width:"100%", padding:"11px 14px", fontSize:14,
+    fontFamily:"inherit", color:C.dark,
+    border:`1.5px solid ${C.border}`,
+    borderRadius:9, outline:"none", background:"#fff",
+    boxSizing:"border-box", cursor:"pointer",
+    transition:"border-color .2s",
   };
 
-  const selectStyle = { ...inputStyle(false), cursor:"pointer", appearance:"auto" };
+  const labelCls = {
+    display:"block", fontSize:11, fontWeight:700,
+    letterSpacing:".08em", textTransform:"uppercase",
+    color:C.tm, marginBottom:7,
+  };
 
-  const SectionCard = ({ children, style={} }) => (
+  const Section = ({ children, style={} }) => (
     <div style={{
       background:"#fff", borderRadius:12,
       border:`1px solid ${C.border}`,
-      padding:"20px 24px", ...style,
+      padding:"22px 24px", marginBottom:16, ...style,
     }}>{children}</div>
   );
+
+  const RadioOpt = ({ field, value, label }) => {
+    const checked = form[field] === value;
+    return (
+      <label style={{
+        display:"flex", alignItems:"center", gap:9,
+        cursor:"pointer", fontSize:13, color:C.dark,
+        userSelect:"none",
+      }}>
+        <div
+          onClick={() => handleChange(field, value)}
+          style={{
+            width:18, height:18, borderRadius:"50%",
+            border:`2px solid ${checked ? C.acc : C.border}`,
+            display:"flex", alignItems:"center", justifyContent:"center",
+            background:"#fff", cursor:"pointer",
+            transition:"border-color .15s", flexShrink:0,
+          }}>
+          {checked && (
+            <div style={{ width:9, height:9, borderRadius:"50%",
+              background:C.acc }}/>
+          )}
+        </div>
+        {label}
+      </label>
+    );
+  };
+
+  const FreqOption = ({ value }) => {
+    const checked = form.sessionFreq === value;
+    return (
+      <div onClick={() => handleChange("sessionFreq", value)} style={{
+        border:`1.5px solid ${checked ? C.acc : C.border}`,
+        borderRadius:9, padding:"11px 14px", cursor:"pointer",
+        background: checked ? "#F0FDF4" : "#fff",
+        display:"flex", alignItems:"center", gap:10,
+        transition:"all .15s",
+      }}>
+        <div style={{
+          width:18, height:18, borderRadius:"50%",
+          border:`2px solid ${checked ? C.acc : C.border}`,
+          display:"flex", alignItems:"center", justifyContent:"center",
+          background:"#fff", flexShrink:0,
+        }}>
+          {checked && <div style={{ width:9, height:9, borderRadius:"50%",
+            background:C.acc }}/>}
+        </div>
+        <span style={{ fontSize:13, color:C.dark, fontWeight: checked ? 600 : 400 }}>
+          {value}
+        </span>
+      </div>
+    );
+  };
 
   return (
     <div style={{ minHeight:"100vh", background:C.bg,
       fontFamily:"'DM Sans',sans-serif" }}>
+      <TopNav user={user} activeNav="Packages"
+        onNavClick={onNavClick} onLogout={onLogout}/>
 
-      <div style={{ padding:"24px 32px", maxWidth:900, margin:"0 auto" }}>
+      <div style={{ maxWidth:920, margin:"0 auto", padding:"28px 28px 60px" }}>
 
         {/* Breadcrumb */}
-        <div style={{ fontSize:12, color:C.tl, marginBottom:14,
-          display:"flex", alignItems:"center", gap:6 }}>
+        <div style={{ fontSize:11, fontWeight:700, letterSpacing:".08em",
+          color:C.tl, marginBottom:16,
+          display:"flex", alignItems:"center", gap:8 }}>
           <span style={{ cursor:"pointer", color:C.acc }}
-            onClick={onDiscard}>DASHBOARD</span>
+            onClick={() => onNavClick("Dashboard")}>DASHBOARD</span>
           <span>/</span>
           <span style={{ cursor:"pointer", color:C.acc }}
             onClick={onDiscard}>PACKAGES</span>
           <span>/</span>
-          <span style={{ fontWeight:600, color:C.dark }}>NEW ENTRY</span>
+          <span style={{ color:C.dark }}>NEW ENTRY</span>
         </div>
 
-        {/* Page title */}
-        <div style={{ marginBottom:24 }}>
-          <h1 style={{ fontSize:22, fontWeight:800, color:C.dark,
-            marginBottom:4 }}>Add New Package</h1>
-          <p style={{ fontSize:13, color:C.tl }}>
-            Performance Period: April 2026</p>
+        <div style={{ marginBottom:28 }}>
+          <h1 style={{ fontSize:24, fontWeight:800, color:C.dark, marginBottom:4 }}>
+            Add New Package</h1>
+          <p style={{ fontSize:13, color:C.tl }}>Performance Period: April 2026</p>
         </div>
 
-        {/* PRICING OPTION NAME */}
-        <SectionCard style={{ marginBottom:16 }}>
-          <label style={labelStyle}>Pricing Option Name</label>
-          <input value={form.name} onChange={set("name")}
+        {/* ── 1. Package Name ── */}
+        <Section>
+          <label style={labelCls}>Pricing Option Name</label>
+          <input
+            value={form.name}
+            onChange={e => handleChange("name", e.target.value)}
+            onFocus={e => { e.target.style.borderColor = C.acc; e.target.style.boxShadow = `0 0 0 3px #D1FAE5`; }}
+            onBlur={e  => { handleBlur("name"); e.target.style.borderColor = touched.name && errors.name ? C.red : C.border; e.target.style.boxShadow = "none"; }}
             placeholder="e.g., Summer Wellness Pass"
-            style={inputStyle(errors.name)}/>
-          {errors.name && (
-            <p style={{ color:C.red, fontSize:11, marginTop:4 }}>
-              {errors.name}</p>
+            style={inputCls("name")}
+            autoComplete="off"
+          />
+          {touched.name && errors.name && (
+            <p style={{ color:C.red, fontSize:11, marginTop:5 }}>⚠ {errors.name}</p>
           )}
 
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr",
-            gap:16, marginTop:16 }}>
+            gap:16, marginTop:18 }}>
             <div>
-              <label style={labelStyle}>Type of Service</label>
-              <select value={form.type} onChange={set("type")}
-                style={selectStyle}>
-                {SERVICE_TYPES.map(t => (
-                  <option key={t}>{t}</option>
-                ))}
+              <label style={labelCls}>Type of Service</label>
+              <select
+                value={form.type}
+                onChange={e => handleChange("type", e.target.value)}
+                style={selectCls}>
+                {SERVICE_TYPES.map(t => <option key={t}>{t}</option>)}
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Service Category</label>
-              <select value={form.category} onChange={set("category")}
-                style={selectStyle}>
-                {SERVICE_CATEGORIES.map(c => (
-                  <option key={c}>{c}</option>
-                ))}
+              <label style={labelCls}>Service Category</label>
+              <select
+                value={form.category}
+                onChange={e => handleChange("category", e.target.value)}
+                style={selectCls}>
+                {SERVICE_CATEGORIES.map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
           </div>
 
-          <div style={{ marginTop:16, display:"flex",
-            alignItems:"flex-end", gap:16 }}>
-            <div style={{ flex:1 }}>
-              <label style={labelStyle}>Price</label>
+          <div style={{ display:"flex", alignItems:"flex-end",
+            gap:20, marginTop:18 }}>
+            <div style={{ flex:"0 0 200px" }}>
+              <label style={labelCls}>Price</label>
               <div style={{ position:"relative" }}>
-                <span style={{ position:"absolute", left:12, top:"50%",
-                  transform:"translateY(-50%)", color:C.tm,
-                  fontSize:14 }}>$</span>
-                <input value={form.price} onChange={set("price")}
-                  type="number" placeholder="0.00"
-                  style={{ ...inputStyle(errors.price), paddingLeft:28 }}/>
+                <span style={{
+                  position:"absolute", left:13, top:"50%",
+                  transform:"translateY(-50%)",
+                  color:C.tm, fontSize:14, pointerEvents:"none",
+                }}>$</span>
+                <input
+                  value={form.price}
+                  onChange={e => handleChange("price", e.target.value)}
+                  onFocus={e => { e.target.style.borderColor = C.acc; e.target.style.boxShadow = `0 0 0 3px #D1FAE5`; }}
+                  onBlur={e  => { handleBlur("price"); e.target.style.borderColor = touched.price && errors.price ? C.red : C.border; e.target.style.boxShadow = "none"; }}
+                  type="number" min="0" step="0.01" placeholder="0.00"
+                  style={{ ...inputCls("price"), paddingLeft:30 }}
+                  autoComplete="off"
+                />
               </div>
-              {errors.price && (
-                <p style={{ color:C.red, fontSize:11, marginTop:4 }}>
-                  {errors.price}</p>
+              {touched.price && errors.price && (
+                <p style={{ color:C.red, fontSize:11, marginTop:5 }}>⚠ {errors.price}</p>
               )}
             </div>
-            <label style={{ display:"flex", alignItems:"center",
-              gap:8, cursor:"pointer", fontSize:13, color:C.dark,
-              paddingBottom:10 }}>
-              <input type="checkbox" checked={form.sellOnline}
-                onChange={set("sellOnline")}
-                style={{ width:15, height:15, accentColor:C.acc }}/>
+            <label style={{
+              display:"flex", alignItems:"center", gap:9,
+              cursor:"pointer", fontSize:13, color:C.dark,
+              paddingBottom:4, userSelect:"none",
+            }}>
+              <input
+                type="checkbox"
+                checked={form.sellOnline}
+                onChange={e => handleChange("sellOnline", e.target.checked)}
+                style={{ width:16, height:16, accentColor:C.acc, cursor:"pointer" }}
+              />
               Available for online purchase
             </label>
           </div>
-        </SectionCard>
+        </Section>
 
-        {/* EXPIRATION RULES + SESSION FREQUENCY */}
+        {/* ── 2. Expiration + Session Frequency ── */}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr",
           gap:16, marginBottom:16 }}>
 
-          {/* Expiration Rules */}
-          <SectionCard>
-            <label style={{ ...labelStyle, marginBottom:14 }}>
-              Expiration Rules</label>
+          <Section style={{ marginBottom:0 }}>
+            <label style={{ ...labelCls, marginBottom:16 }}>Expiration Rules</label>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr",
               gap:12, marginBottom:14 }}>
               <div>
-                <label style={labelStyle}>Duration</label>
-                <input value={form.duration} onChange={set("duration")}
+                <label style={labelCls}>Duration</label>
+                <input
+                  value={form.duration}
+                  onChange={e => handleChange("duration", e.target.value)}
+                  onFocus={e => e.target.style.borderColor = C.acc}
+                  onBlur={e  => e.target.style.borderColor = C.border}
                   type="number" min="1"
-                  style={inputStyle(false)}/>
+                  style={inputCls("duration")}
+                />
               </div>
               <div>
-                <label style={labelStyle}>Unit</label>
-                <select value={form.durationUnit}
-                  onChange={set("durationUnit")}
-                  style={selectStyle}>
-                  {DURATION_UNITS.map(u => (
-                    <option key={u}>{u}</option>
-                  ))}
+                <label style={labelCls}>Unit</label>
+                <select
+                  value={form.durationUnit}
+                  onChange={e => handleChange("durationUnit", e.target.value)}
+                  style={selectCls}>
+                  {DURATION_UNITS.map(u => <option key={u}>{u}</option>)}
                 </select>
               </div>
             </div>
             <div>
-              <label style={labelStyle}>Trigger</label>
-              <select value={form.trigger} onChange={set("trigger")}
-                style={selectStyle}>
-                {TRIGGER_OPTIONS.map(t => (
-                  <option key={t}>{t}</option>
-                ))}
+              <label style={labelCls}>Trigger</label>
+              <select
+                value={form.trigger}
+                onChange={e => handleChange("trigger", e.target.value)}
+                style={selectCls}>
+                {TRIGGER_OPTIONS.map(t => <option key={t}>{t}</option>)}
               </select>
             </div>
-          </SectionCard>
+          </Section>
 
-          {/* Session Frequency */}
-          <SectionCard>
-            <label style={{ ...labelStyle, marginBottom:16 }}>
-              Session Frequency</label>
-            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-              {["Single Session","Multiple Sessions","Unlimited"].map(opt => (
-                <div key={opt} style={{
-                  border:`1.5px solid ${form.sessionFreq===opt
-                    ? C.acc : C.border}`,
-                  borderRadius:8, padding:"10px 14px",
-                  cursor:"pointer",
-                  background: form.sessionFreq===opt ? "#F0FDF4" : "#fff",
-                  transition:"all .15s",
-                }} onClick={() => setV("sessionFreq", opt)}>
-                  <Radio checked={form.sessionFreq===opt}
-                    onChange={() => setV("sessionFreq", opt)}
-                    label={opt}/>
-                </div>
-              ))}
+          <Section style={{ marginBottom:0 }}>
+            <label style={{ ...labelCls, marginBottom:16 }}>Session Frequency</label>
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              <FreqOption value="Single Session"/>
+              <FreqOption value="Multiple Sessions"/>
+              <FreqOption value="Unlimited"/>
             </div>
-          </SectionCard>
+          </Section>
         </div>
 
-        {/* SETTINGS GRID */}
-        <SectionCard style={{ marginBottom:24 }}>
+        {/* ── 3. Settings ── */}
+        <Section>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr",
             gap:24 }}>
 
-            {/* Introductory Offer */}
             <div>
-              <label style={labelStyle}>Introductory Offer</label>
-              <div style={{ display:"flex", gap:20 }}>
-                {["No","Yes"].map(v => (
-                  <Radio key={v} checked={form.introOffer===v}
-                    onChange={() => setV("introOffer", v)} label={v}/>
-                ))}
+              <label style={labelCls}>Introductory Offer</label>
+              <div style={{ display:"flex", gap:24, marginTop:4 }}>
+                <RadioOpt field="introOffer" value="No"  label="No"/>
+                <RadioOpt field="introOffer" value="Yes" label="Yes"/>
               </div>
             </div>
 
-            {/* Contract Required */}
             <div>
-              <label style={labelStyle}>Contract Required</label>
-              <div style={{ display:"flex", gap:20 }}>
-                {["No","Yes"].map(v => (
-                  <Radio key={v} checked={form.contractRequired===v}
-                    onChange={() => setV("contractRequired", v)} label={v}/>
-                ))}
+              <label style={labelCls}>Contract Required</label>
+              <div style={{ display:"flex", gap:24, marginTop:4 }}>
+                <RadioOpt field="contractRequired" value="No"  label="No"/>
+                <RadioOpt field="contractRequired" value="Yes" label="Yes"/>
               </div>
             </div>
 
-            {/* Revenue Category */}
             <div>
-              <label style={labelStyle}>Revenue Category</label>
-              <select value={form.revenueCategory}
-                onChange={set("revenueCategory")} style={selectStyle}>
-                {REVENUE_CATEGORIES.map(c => (
-                  <option key={c}>{c}</option>
-                ))}
+              <label style={labelCls}>Revenue Category</label>
+              <select
+                value={form.revenueCategory}
+                onChange={e => handleChange("revenueCategory", e.target.value)}
+                style={selectCls}>
+                {REVENUE_CATEGORIES.map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
 
-            {/* Frequency of Use */}
             <div>
-              <label style={labelStyle}>Frequency of Use</label>
-              <select value={form.frequencyOfUse}
-                onChange={set("frequencyOfUse")} style={selectStyle}>
-                {FREQUENCY_OPTIONS.map(f => (
-                  <option key={f}>{f}</option>
-                ))}
+              <label style={labelCls}>Frequency of Use</label>
+              <select
+                value={form.frequencyOfUse}
+                onChange={e => handleChange("frequencyOfUse", e.target.value)}
+                style={selectCls}>
+                {FREQUENCY_OPTIONS.map(f => <option key={f}>{f}</option>)}
               </select>
             </div>
 
-            {/* Membership Link */}
             <div>
-              <label style={labelStyle}>Membership Link</label>
-              <select value={form.membershipLink}
-                onChange={set("membershipLink")} style={selectStyle}>
-                {MEMBERSHIP_LINKS.map(m => (
-                  <option key={m}>{m}</option>
-                ))}
+              <label style={labelCls}>Membership Link</label>
+              <select
+                value={form.membershipLink}
+                onChange={e => handleChange("membershipLink", e.target.value)}
+                style={selectCls}>
+                {MEMBERSHIP_LINKS.map(m => <option key={m}>{m}</option>)}
               </select>
             </div>
 
-            {/* Advanced Settings */}
             <div>
-              <label style={labelStyle}>Advanced Settings</label>
-              <div style={{ display:"flex", gap:20 }}>
-                {["Standard","Custom"].map(v => (
-                  <Radio key={v}
-                    checked={form.advancedSettings===v}
-                    onChange={() => setV("advancedSettings", v)}
-                    label={v}/>
-                ))}
+              <label style={labelCls}>Advanced Settings</label>
+              <div style={{ display:"flex", gap:24, marginTop:4 }}>
+                <RadioOpt field="advancedSettings" value="Standard" label="Standard"/>
+                <RadioOpt field="advancedSettings" value="Custom"   label="Custom"/>
               </div>
             </div>
           </div>
-        </SectionCard>
+        </Section>
 
-        {/* Footer actions */}
+        {/* ── Footer ── */}
         <div style={{ display:"flex", justifyContent:"space-between",
-          alignItems:"center" }}>
+          alignItems:"center", marginTop:8 }}>
           <button onClick={onDiscard} style={{
             background:"none", border:"none", cursor:"pointer",
-            fontSize:13, fontWeight:600, color:C.tm,
-            fontFamily:"inherit", letterSpacing:".05em",
+            fontSize:12, fontWeight:700, color:C.tm,
+            fontFamily:"inherit", letterSpacing:".08em",
             textTransform:"uppercase",
           }}>Discard Changes</button>
-
           <div style={{ display:"flex", gap:12 }}>
             <button onClick={() => handleSave(true)} style={{
-              background:"#F0FDF4", border:`1px solid ${C.acc2}`,
-              borderRadius:9, padding:"11px 22px", cursor:"pointer",
-              fontSize:13, fontWeight:600, color:C.acc,
-              fontFamily:"inherit",
+              background:"#F0FDF4", border:`1.5px solid ${C.acc2}`,
+              borderRadius:9, padding:"11px 24px", cursor:"pointer",
+              fontSize:13, fontWeight:600, color:C.acc, fontFamily:"inherit",
+              transition:"background .15s",
             }}>Save & Add Another</button>
             <button onClick={() => handleSave(false)} style={{
               background:C.acc, border:"none",
-              borderRadius:9, padding:"11px 28px", cursor:"pointer",
-              fontSize:13, fontWeight:700, color:"#fff",
-              fontFamily:"inherit",
-            }}>Save</button>
+              borderRadius:9, padding:"11px 32px", cursor:"pointer",
+              fontSize:13, fontWeight:700, color:"#fff", fontFamily:"inherit",
+              transition:"background .15s",
+            }}
+              onMouseEnter={e => e.currentTarget.style.background = "#155C3E"}
+              onMouseLeave={e => e.currentTarget.style.background = C.acc}>
+              Save
+            </button>
           </div>
         </div>
       </div>
@@ -452,186 +583,79 @@ function AddPackageForm({ onSave, onDiscard }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // PACKAGES DASHBOARD
 // ══════════════════════════════════════════════════════════════════════════════
-function PackageDashboard({ packages, setPackages, onAddNew, navigate, user, activeNav, setActiveNav }) {
-
-  const [search, setSearch]         = useState("");
-  const [page, setPage]             = useState(1);
-  const [activeFilters, setFilters] = useState({
-    type:"All", channel:"Digital", membership:"Premium", status:"Active",
-  });
+function PackageDashboard({ packages, setPackages, onAddNew, user, activeNav, onNavClick, onLogout }) {
+  const [search, setSearch] = useState("");
+  const [page, setPage]     = useState(1);
   const PER_PAGE = 10;
 
-  const totalRevenue = packages.reduce((s, p) => s + p.price, 0);
-  const liquidCash   = packages.filter(p => p.type!=="Memberships")
-    .reduce((s,p) => s + p.price, 0);
-  const creditCard   = packages.filter(p => p.type==="Memberships")
-    .reduce((s,p) => s + p.price, 0);
+  const totalRevenue = packages.reduce((s,p) => s+p.price, 0);
+  const liquidCash   = packages.filter(p=>p.type!=="Memberships").reduce((s,p)=>s+p.price, 0);
+  const creditCard   = packages.filter(p=>p.type==="Memberships").reduce((s,p)=>s+p.price, 0);
 
   const STATS_DATA = [
-    { label:"TOTAL VOLUME",        value:`$${(totalRevenue/1000).toFixed(1)}M`,
-      sub:"+12.4% vs last period", subColor:C.acc2 },
-    { label:"TOTAL PACKAGE SALES", value:packages.length,
-      sub:"Focused in Q3 target list", subColor:C.tm },
-    { label:"LIQUID CASH",         value:`$${liquidCash.toLocaleString()}`,
-      sub:"", subColor:C.tm },
-    { label:"CREDIT CARD",         value:`$${creditCard.toLocaleString()}`,
-      sub:"", subColor:C.tm },
+    { label:"TOTAL VOLUME",        value:`$${(totalRevenue/1000).toFixed(1)}M`, sub:"+12.4% vs last period", subColor:C.acc2 },
+    { label:"TOTAL PACKAGE SALES", value:packages.length, sub:"Focused in Q3 target list", subColor:C.tm },
+    { label:"LIQUID CASH",         value:`$${liquidCash.toLocaleString()}`, sub:"", subColor:C.tm },
+    { label:"CREDIT CARD",         value:`$${creditCard.toLocaleString()}`,  sub:"", subColor:C.tm },
   ];
 
-  const handleToggleActive = (id) => {
-    const updated = packages.map(p =>
-      p.id===id ? { ...p, active:!p.active } : p
-    );
+  const updatePackages = useCallback((updated) => {
     setPackages(updated);
     savePackages(updated);
+  }, [setPackages]);
+
+  const handleToggleActive  = (id) => updatePackages(packages.map(p => p.id===id ? {...p,active:!p.active}       : p));
+  const handleToggleOnline  = (id) => updatePackages(packages.map(p => p.id===id ? {...p,sellOnline:!p.sellOnline}: p));
+  const handleDelete        = (id) => {
+    if (window.confirm("Delete this package?"))
+      updatePackages(packages.filter(p => p.id!==id));
   };
 
-  const handleToggleOnline = (id) => {
-    const updated = packages.map(p =>
-      p.id===id ? { ...p, sellOnline:!p.sellOnline } : p
-    );
-    setPackages(updated);
-    savePackages(updated);
-  };
-
-  const handleDelete = (id) => {
-    const updated = packages.filter(p => p.id !== id);
-    setPackages(updated);
-    savePackages(updated);
-  };
-
-  const handleNavClick = (label) => {
-    setActiveNav(label);
-    if (label === "Dashboard") navigate("/dashboard");
-    if (label === "Trainers")  navigate("/trainers");
-  };
-
-  const filtered = packages.filter(p =>
+  const filtered   = packages.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
     p.type.toLowerCase().includes(search.toLowerCase()) ||
     p.category.toLowerCase().includes(search.toLowerCase())
   );
-  const totalPages = Math.ceil(filtered.length / PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const paginated  = filtered.slice((page-1)*PER_PAGE, page*PER_PAGE);
 
   const TypeBadge = ({ type }) => {
-    const style = TYPE_COLORS[type] || { bg:"#F1F5F9", color:C.tm };
+    const s = TYPE_COLORS[type] || { bg:"#F1F5F9", color:C.tm };
     return (
-      <span style={{
-        background:style.bg, color:style.color,
-        fontSize:10, fontWeight:700, padding:"3px 8px",
-        borderRadius:5, letterSpacing:".05em",
-        textTransform:"uppercase",
-      }}>{type}</span>
+      <span style={{ background:s.bg, color:s.color, fontSize:10,
+        fontWeight:700, padding:"3px 9px", borderRadius:5,
+        letterSpacing:".04em", textTransform:"uppercase" }}>
+        {type}
+      </span>
     );
   };
 
   return (
     <div style={{ minHeight:"100vh", background:C.bg,
       fontFamily:"'DM Sans',sans-serif" }}>
+      <TopNav user={user} activeNav={activeNav}
+        onNavClick={onNavClick} onLogout={onLogout}/>
 
-      {/* TOP NAV */}
-      <nav style={{
-        background:C.nav, height:54, display:"flex",
-        alignItems:"center", padding:"0 24px",
-        position:"sticky", top:0, zIndex:200,
-        boxShadow:"0 2px 8px rgba(0,0,0,.2)",
-      }}>
-        <div style={{ display:"flex", alignItems:"center",
-          gap:8, marginRight:20 }}>
-          <svg width="28" height="28" viewBox="0 0 32 32">
-            <polygon points="16,2 30,16 16,30 2,16" fill={C.acc}/>
-            <polygon points="16,8 24,16 16,24 8,16" fill={C.acc2}/>
-          </svg>
-          <span style={{ color:"#fff", fontWeight:700, fontSize:17,
-            fontFamily:"Georgia,serif" }}>FitManage</span>
-        </div>
-        <div style={{
-          background:"rgba(255,255,255,.1)",
-          border:"1px solid rgba(255,255,255,.15)",
-          borderRadius:8, padding:"5px 14px",
-          display:"flex", alignItems:"center",
-          gap:8, cursor:"pointer", marginRight:"auto",
-        }}>
-          <span style={{ color:"#CBD5E1", fontSize:13 }}>
-            YKBI Health & Fitness</span>
-          <span style={{ color:C.tl, fontSize:11 }}>▾</span>
-        </div>
-        <div style={{ display:"flex", alignItems:"center", gap:18 }}>
-          <span style={{ fontSize:20, cursor:"pointer", opacity:.7 }}>⚙️</span>
-          <span style={{ fontSize:20, cursor:"pointer", opacity:.7 }}>🔍</span>
-          <div style={{ position:"relative", cursor:"pointer" }}>
-            <span style={{ fontSize:20 }}>🔔</span>
-            <div style={{
-              position:"absolute", top:-4, right:-4, width:16, height:16,
-              background:C.red, borderRadius:"50%", fontSize:9,
-              display:"flex", alignItems:"center", justifyContent:"center",
-              color:"#fff", fontWeight:700, border:"2px solid "+C.nav,
-            }}>3</div>
-          </div>
-          <div style={{ display:"flex", alignItems:"center", gap:8,
-            cursor:"pointer" }}
-            onClick={() => {
-              localStorage.removeItem("fm_token");
-              localStorage.removeItem("fm_user");
-              navigate("/login");
-            }}>
-            <div style={{ width:32, height:32, borderRadius:"50%",
-              background:C.acc, display:"flex", alignItems:"center",
-              justifyContent:"center", color:"#fff",
-              fontSize:13, fontWeight:700 }}>
-              {user?.fullName?.[0]||"U"}</div>
-            <span style={{ color:"#E2E8F0", fontSize:13, fontWeight:600 }}>
-              {user?.fullName?.split(" ")[0]||"HABIB"}</span>
-            <span style={{ color:C.tl, fontSize:10 }}>▾</span>
-          </div>
-        </div>
-      </nav>
-
-      {/* SUB-NAV */}
-      <div style={{
-        background:C.card, borderBottom:`1px solid ${C.border}`,
-        display:"flex", alignItems:"center", padding:"0 24px",
-        position:"sticky", top:54, zIndex:199,
-      }}>
-        {NAV_ITEMS.map(({ label, icon }) => {
-          const active = label === activeNav;
-          return (
-            <button key={label} onClick={() => handleNavClick(label)} style={{
-              background:"none", border:"none", cursor:"pointer",
-              padding:"13px 16px", fontSize:13,
-              fontWeight: active ? 700 : 500,
-              color: active ? C.acc : C.tm,
-              borderBottom: active
-                ? `2.5px solid ${C.acc}` : "2.5px solid transparent",
-              fontFamily:"inherit",
-              display:"flex", alignItems:"center", gap:5,
-            }}>
-              <span>{icon}</span> {label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* BODY */}
       <div style={{ padding:"24px 28px", maxWidth:1280, margin:"0 auto" }}>
 
         {/* Header */}
         <div style={{ display:"flex", justifyContent:"space-between",
-          alignItems:"flex-start", marginBottom:20 }}>
+          alignItems:"flex-start", marginBottom:22 }}>
           <div>
-            <h1 style={{ fontSize:22, fontWeight:800, color:C.dark,
-              marginBottom:4 }}>Packages</h1>
-            <p style={{ fontSize:13, color:C.tl }}>
-              Performance Period: April 2026</p>
+            <h1 style={{ fontSize:22, fontWeight:800, color:C.dark, marginBottom:4 }}>Packages</h1>
+            <p style={{ fontSize:13, color:C.tl }}>Performance Period: April 2026</p>
           </div>
           <button onClick={onAddNew} style={{
             background:C.acc, border:"none", borderRadius:9,
             padding:"11px 20px", cursor:"pointer",
-            fontSize:13, fontWeight:700, color:"#fff",
-            fontFamily:"inherit", display:"flex",
-            alignItems:"center", gap:7,
-          }}>+ Add New Package</button>
+            fontSize:13, fontWeight:700, color:"#fff", fontFamily:"inherit",
+            display:"flex", alignItems:"center", gap:7,
+            transition:"background .15s",
+          }}
+            onMouseEnter={e => e.currentTarget.style.background="#155C3E"}
+            onMouseLeave={e => e.currentTarget.style.background=C.acc}>
+            + Add New Package
+          </button>
         </div>
 
         {/* Stats */}
@@ -639,140 +663,132 @@ function PackageDashboard({ packages, setPackages, onAddNew, navigate, user, act
           gap:14, marginBottom:22 }}>
           {STATS_DATA.map(s => (
             <Card key={s.label} style={{ padding:"18px 20px" }}>
-              <p style={{ fontSize:10, fontWeight:700,
-                letterSpacing:".1em", textTransform:"uppercase",
-                color:C.tl, marginBottom:6 }}>{s.label}</p>
+              <p style={{ fontSize:10, fontWeight:700, letterSpacing:".1em",
+                textTransform:"uppercase", color:C.tl, marginBottom:6 }}>{s.label}</p>
               <div style={{ fontSize:28, fontWeight:800, color:C.dark,
                 fontFamily:"Georgia,serif", lineHeight:1 }}>{s.value}</div>
               {s.sub && (
                 <div style={{ fontSize:11, color:s.subColor,
-                  marginTop:5, fontWeight:500 }}>
-                  ↑ {s.sub}</div>
+                  marginTop:5, fontWeight:500 }}>↑ {s.sub}</div>
               )}
             </Card>
           ))}
         </div>
 
-        {/* Filter bar */}
+        {/* Search + filter bar */}
         <div style={{ display:"flex", alignItems:"center",
           gap:10, marginBottom:16, flexWrap:"wrap" }}>
-          <div style={{ display:"flex", alignItems:"center",
-            gap:6, padding:"7px 12px", background:"#fff",
-            border:`1px solid ${C.border}`, borderRadius:8,
-            fontSize:12, color:C.tm, cursor:"pointer" }}>
-            <span>⚙</span> FILTERS
+          <div style={{ position:"relative" }}>
+            <span style={{ position:"absolute", left:12, top:"50%",
+              transform:"translateY(-50%)", color:C.tl, fontSize:14 }}>🔍</span>
+            <input
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              placeholder="Search packages..."
+              style={{
+                border:`1px solid ${C.border}`, borderRadius:8,
+                padding:"8px 12px 8px 34px", fontSize:13,
+                fontFamily:"inherit", color:C.dark, outline:"none",
+                background:"#fff", width:200,
+              }}
+            />
           </div>
           {[
-            { label:"Service Types: All" },
-            { label:"Sales Channels: Digital" },
-            { label:"Memberships: Premium" },
-            { label:"Status: Active" },
+            "Service Types: All","Sales Channels: Digital",
+            "Memberships: Premium","Status: Active",
           ].map(f => (
-            <div key={f.label} style={{
+            <div key={f} style={{
               padding:"6px 12px", background:"#F0FDF4",
               border:`1px solid ${C.acc2}`, borderRadius:20,
-              fontSize:12, color:C.acc, fontWeight:600,
-              cursor:"pointer", display:"flex",
-              alignItems:"center", gap:6,
+              fontSize:12, color:C.acc, fontWeight:600, cursor:"pointer",
+              display:"flex", alignItems:"center", gap:6,
             }}>
-              {f.label}
-              <span style={{ fontSize:14, color:C.acc2 }}>×</span>
+              {f} <span style={{ fontSize:14 }}>×</span>
             </div>
           ))}
-          <button style={{ marginLeft:"auto", background:"none",
-            border:"none", cursor:"pointer", fontSize:12,
-            fontWeight:700, color:C.red,
-            fontFamily:"inherit", letterSpacing:".06em" }}>
-            CLEAR ALL</button>
+          <button style={{
+            marginLeft:"auto", background:"none", border:"none",
+            cursor:"pointer", fontSize:11, fontWeight:700,
+            color:C.red, fontFamily:"inherit", letterSpacing:".07em",
+          }}>CLEAR ALL</button>
         </div>
 
         {/* Table */}
         <Card style={{ overflow:"hidden", marginBottom:16 }}>
-          {/* Table header */}
-          <div style={{ display:"grid",
-            gridTemplateColumns:"2fr 80px 130px 150px 120px 70px 90px 60px",
-            padding:"12px 20px",
+          {/* Header row */}
+          <div style={{
+            display:"grid",
+            gridTemplateColumns:"2.5fr 70px 140px 160px 130px 70px 100px 50px",
+            padding:"11px 20px",
             borderBottom:`2px solid ${C.border}`,
-            background:"#FAFBFC" }}>
-            {["SERVICE NAME","SESSIONS","SERVICE TYPE",
-              "CATEGORY","PRICE","ACTIVE","SELL ONLINE","ACTIONS"].map(h => (
+            background:"#F8FAFC",
+          }}>
+            {["SERVICE NAME","SESSIONS","SERVICE TYPE","CATEGORY",
+              "PRICE","ACTIVE","SELL ONLINE","ACTIONS"].map(h => (
               <div key={h} style={{ fontSize:10, fontWeight:700,
                 letterSpacing:".08em", color:C.tl,
                 textTransform:"uppercase" }}>{h}</div>
             ))}
           </div>
 
-          {/* Rows */}
+          {/* Data rows */}
           {paginated.length === 0 ? (
-            <div style={{ padding:"40px", textAlign:"center",
-              color:C.tl, fontSize:14 }}>
-              No packages found. <button onClick={onAddNew}
-                style={{ color:C.acc, background:"none", border:"none",
-                  cursor:"pointer", fontWeight:600,
-                  fontFamily:"inherit" }}>Add one now →</button>
+            <div style={{ padding:"48px", textAlign:"center" }}>
+              <div style={{ fontSize:36, marginBottom:12 }}>📦</div>
+              <div style={{ fontSize:15, fontWeight:700, color:C.dark,
+                marginBottom:6 }}>No packages found</div>
+              <button onClick={onAddNew} style={{
+                background:C.acc, border:"none", borderRadius:8,
+                padding:"9px 20px", cursor:"pointer",
+                fontSize:13, fontWeight:600, color:"#fff",
+                fontFamily:"inherit",
+              }}>+ Add New Package</button>
             </div>
           ) : paginated.map((pkg, i) => (
             <div key={pkg.id} style={{
               display:"grid",
-              gridTemplateColumns:"2fr 80px 130px 150px 120px 70px 90px 60px",
-              padding:"14px 20px",
-              borderBottom: i<paginated.length-1
-                ? `1px solid ${C.border}` : "none",
-              background: i%2===0 ? "#fff" : "#FAFBFC",
+              gridTemplateColumns:"2.5fr 70px 140px 160px 130px 70px 100px 50px",
+              padding:"13px 20px",
+              borderBottom: i<paginated.length-1 ? `1px solid ${C.border}` : "none",
+              background:"#fff",
               alignItems:"center",
-              transition:"background .1s",
+              transition:"background .12s",
             }}
               onMouseEnter={e => e.currentTarget.style.background="#F0FDF4"}
-              onMouseLeave={e => e.currentTarget.style.background=i%2===0?"#fff":"#FAFBFC"}>
+              onMouseLeave={e => e.currentTarget.style.background="#fff"}>
 
-              {/* Name */}
-              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <div style={{ width:6, height:6, borderRadius:"50%",
-                  background:C.acc, flexShrink:0 }}/>
-                <span style={{ fontSize:13, fontWeight:500,
-                  color:C.dark }}>{pkg.name}</span>
+              <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+                <div style={{ width:7, height:7, borderRadius:"50%",
+                  background: pkg.active ? C.acc : C.tl, flexShrink:0 }}/>
+                <span style={{ fontSize:13, color:C.dark, fontWeight:500,
+                  overflow:"hidden", textOverflow:"ellipsis",
+                  whiteSpace:"nowrap" }}>{pkg.name}</span>
               </div>
 
-              {/* Sessions */}
               <div style={{ fontSize:13, color:C.tm }}>{pkg.sessions}</div>
 
-              {/* Type badge */}
-              <div><TypeBadge type={pkg.type}/></div>
+              <TypeBadge type={pkg.type}/>
 
-              {/* Category */}
-              <div style={{ fontSize:13, color:C.tm }}>{pkg.category}</div>
+              <div style={{ fontSize:13, color:C.tm,
+                overflow:"hidden", textOverflow:"ellipsis",
+                whiteSpace:"nowrap" }}>{pkg.category}</div>
 
-              {/* Price */}
-              <div style={{ fontSize:13, fontWeight:600,
-                color:C.dark }}>
-                USD {pkg.price.toLocaleString("en-US",{
-                  minimumFractionDigits:2 })}</div>
-
-              {/* Active toggle */}
-              <div>
-                <Toggle on={pkg.active}
-                  onChange={() => handleToggleActive(pkg.id)}/>
+              <div style={{ fontSize:13, fontWeight:600, color:C.dark }}>
+                USD {pkg.price.toLocaleString("en-US",{minimumFractionDigits:2})}
               </div>
 
-              {/* Sell Online toggle */}
-              <div>
-                <Toggle on={pkg.sellOnline}
-                  onChange={() => handleToggleOnline(pkg.id)}/>
-              </div>
+              <Toggle on={pkg.active}   onChange={() => handleToggleActive(pkg.id)}/>
+              <Toggle on={pkg.sellOnline} onChange={() => handleToggleOnline(pkg.id)}/>
 
-              {/* Actions */}
-              <div style={{ position:"relative" }}>
-                <button
-                  onClick={() => {
-                    if (window.confirm(`Delete "${pkg.name}"?`)) {
-                      handleDelete(pkg.id);
-                    }
-                  }}
-                  style={{ background:"none", border:"none",
-                    cursor:"pointer", fontSize:18, color:C.tl,
-                    padding:"4px 8px", borderRadius:6,
-                  }}>⋮</button>
-              </div>
+              <button onClick={() => handleDelete(pkg.id)} style={{
+                background:"none", border:"none", cursor:"pointer",
+                fontSize:18, color:C.tl, padding:"4px 8px",
+                borderRadius:6, transition:"color .15s",
+              }}
+                onMouseEnter={e => e.currentTarget.style.color=C.red}
+                onMouseLeave={e => e.currentTarget.style.color=C.tl}>
+                ⋮
+              </button>
             </div>
           ))}
         </Card>
@@ -781,44 +797,43 @@ function PackageDashboard({ packages, setPackages, onAddNew, navigate, user, act
         <div style={{ display:"flex", justifyContent:"space-between",
           alignItems:"center" }}>
           <span style={{ fontSize:12, color:C.tl }}>
-            Showing {Math.min((page-1)*PER_PAGE+1, filtered.length)}
-            {" "}to{" "}{Math.min(page*PER_PAGE, filtered.length)}
+            Showing {filtered.length === 0 ? 0 : (page-1)*PER_PAGE+1}
+            {" "}to {Math.min(page*PER_PAGE, filtered.length)}
             {" "}of {filtered.length} options
           </span>
           <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-            <button onClick={() => setPage(p => Math.max(1,p-1))}
+            <button onClick={() => setPage(p=>Math.max(1,p-1))}
               disabled={page===1} style={{
                 width:32, height:32, borderRadius:8,
-                border:`1px solid ${C.border}`,
-                background:"#fff", cursor: page===1 ? "default" : "pointer",
-                fontSize:14, color: page===1 ? C.tl : C.dark,
+                border:`1px solid ${C.border}`, background:"#fff",
+                cursor:page===1?"not-allowed":"pointer",
+                fontSize:16, color:page===1?C.tl:C.dark,
                 display:"flex", alignItems:"center", justifyContent:"center",
               }}>‹</button>
-            {Array.from({ length:totalPages }, (_,i) => i+1).map(p => (
+            {Array.from({length:totalPages},(_,i)=>i+1).map(p => (
               <button key={p} onClick={() => setPage(p)} style={{
                 width:32, height:32, borderRadius:8,
-                border:`1px solid ${page===p ? C.acc : C.border}`,
-                background: page===p ? C.acc : "#fff",
-                color: page===p ? "#fff" : C.dark,
+                border:`1px solid ${page===p?C.acc:C.border}`,
+                background:page===p?C.acc:"#fff",
+                color:page===p?"#fff":C.dark,
                 cursor:"pointer", fontSize:13, fontWeight:600,
                 display:"flex", alignItems:"center", justifyContent:"center",
+                transition:"all .15s",
               }}>{p}</button>
             ))}
-            <button onClick={() => setPage(p => Math.min(totalPages,p+1))}
-              disabled={page===totalPages} style={{
+            <button onClick={() => setPage(p=>Math.min(totalPages,p+1))}
+              disabled={page>=totalPages} style={{
                 width:32, height:32, borderRadius:8,
-                border:`1px solid ${C.border}`,
-                background:"#fff",
-                cursor: page===totalPages ? "default" : "pointer",
-                fontSize:14, color: page===totalPages ? C.tl : C.dark,
+                border:`1px solid ${C.border}`, background:"#fff",
+                cursor:page>=totalPages?"not-allowed":"pointer",
+                fontSize:16, color:page>=totalPages?C.tl:C.dark,
                 display:"flex", alignItems:"center", justifyContent:"center",
               }}>›</button>
           </div>
         </div>
       </div>
 
-      {/* Footer */}
-      <div style={{ textAlign:"center", padding:"16px 0",
+      <div style={{ textAlign:"center", padding:"20px 0",
         fontSize:12, color:C.tl }}>
         © 2026 FitManager Copyright and rights reserved
       </div>
@@ -827,96 +842,53 @@ function PackageDashboard({ packages, setPackages, onAddNew, navigate, user, act
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// MAIN PACKAGES PAGE — switches between Add form and Dashboard
+// ROOT — switches between dashboard ↔ add form
 // ══════════════════════════════════════════════════════════════════════════════
 export default function PackagesPage() {
-  const navigate    = useNavigate();
-  const [user, setUser]         = useState(null);
-  const [view, setView]         = useState("dashboard"); // "dashboard" | "add"
-  const [packages, setPackages] = useState(() => loadPackages());
+  const navigate = useNavigate();
+  const [user, setUser]           = useState(null);
+  const [view, setView]           = useState("dashboard");
+  const [packages, setPackages]   = useState(() => loadPackages());
   const [activeNav, setActiveNav] = useState("Packages");
 
   useEffect(() => {
     const stored = localStorage.getItem("fm_user");
     if (!stored) { navigate("/login"); return; }
     setUser(JSON.parse(stored));
-    // Always load from storage on mount
     setPackages(loadPackages());
   }, []);
 
-  const handleSavePackage = (pkg, addAnother) => {
+  const handleNavClick = useCallback((label) => {
+    setActiveNav(label);
+    if (label === "Dashboard") navigate("/dashboard");
+    if (label === "Trainers")  navigate("/trainers");
+    if (label === "Packages")  setView("dashboard");
+  }, [navigate]);
+
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem("fm_token");
+    localStorage.removeItem("fm_user");
+    navigate("/login");
+  }, [navigate]);
+
+  const handleSavePackage = useCallback((pkg, addAnother) => {
     setPackages(prev => {
       const updated = [...prev, pkg];
-      savePackages(updated);      // ✅ persists to localStorage
+      savePackages(updated);
       return updated;
     });
-    if (!addAnother) {
-      setView("dashboard");       // ✅ go to dashboard after save
-    }
-  };
-
-  const handleDiscard = () => setView("dashboard");
+    if (!addAnother) setView("dashboard");
+  }, []);
 
   if (view === "add") {
     return (
-      <div>
-        {/* Mini nav for Add form */}
-        <nav style={{
-          background:C.nav, height:54, display:"flex",
-          alignItems:"center", padding:"0 24px",
-          position:"sticky", top:0, zIndex:200,
-          boxShadow:"0 2px 8px rgba(0,0,0,.2)",
-        }}>
-          <div style={{ display:"flex", alignItems:"center",
-            gap:8, marginRight:20 }}>
-            <svg width="28" height="28" viewBox="0 0 32 32">
-              <polygon points="16,2 30,16 16,30 2,16" fill={C.acc}/>
-              <polygon points="16,8 24,16 16,24 8,16" fill={C.acc2}/>
-            </svg>
-            <span style={{ color:"#fff", fontWeight:700, fontSize:17,
-              fontFamily:"Georgia,serif" }}>FitManage</span>
-          </div>
-          <div style={{
-            background:"rgba(255,255,255,.1)",
-            border:"1px solid rgba(255,255,255,.15)",
-            borderRadius:8, padding:"5px 14px",
-            display:"flex", alignItems:"center",
-            gap:8, cursor:"pointer", marginRight:"auto",
-          }}>
-            <span style={{ color:"#CBD5E1", fontSize:13 }}>
-              YKBI Health & Fitness</span>
-          </div>
-          <span style={{ color:"#E2E8F0", fontSize:13, cursor:"pointer" }}
-            onClick={() => setView("dashboard")}>← Back to Packages</span>
-        </nav>
-        <div style={{
-          background:C.card, borderBottom:`1px solid ${C.border}`,
-          display:"flex", alignItems:"center", padding:"0 24px",
-          position:"sticky", top:54, zIndex:199,
-        }}>
-          {NAV_ITEMS.map(({ label, icon }) => (
-            <button key={label} onClick={() => {
-              if (label==="Dashboard") navigate("/dashboard");
-              else if (label==="Packages") setView("dashboard");
-              else if (label==="Trainers") navigate("/trainers");
-            }} style={{
-              background:"none", border:"none", cursor:"pointer",
-              padding:"13px 16px", fontSize:13,
-              fontWeight: label==="Packages" ? 700 : 500,
-              color: label==="Packages" ? C.acc : C.tm,
-              borderBottom: label==="Packages"
-                ? `2.5px solid ${C.acc}` : "2.5px solid transparent",
-              fontFamily:"inherit",
-              display:"flex", alignItems:"center", gap:5,
-            }}>
-              <span>{icon}</span> {label}
-            </button>
-          ))}
-        </div>
-        <AddPackageForm
-          onSave={handleSavePackage}
-          onDiscard={handleDiscard}/>
-      </div>
+      <AddPackageForm
+        user={user}
+        onSave={handleSavePackage}
+        onDiscard={() => setView("dashboard")}
+        onNavClick={handleNavClick}
+        onLogout={handleLogout}
+      />
     );
   }
 
@@ -925,9 +897,10 @@ export default function PackagesPage() {
       packages={packages}
       setPackages={setPackages}
       onAddNew={() => setView("add")}
-      navigate={navigate}
       user={user}
       activeNav={activeNav}
-      setActiveNav={setActiveNav}/>
+      onNavClick={handleNavClick}
+      onLogout={handleLogout}
+    />
   );
 }
