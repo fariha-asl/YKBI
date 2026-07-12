@@ -1,8 +1,9 @@
 // frontend/src/App.jsx
 import { Routes, Route, Navigate } from "react-router-dom";
-import LoginPage   from "./pages/LoginPage";
-import Dashboard   from "./pages/Dashboard";
-import TrainerPage from "./pages/TrainerPage";
+import LoginPage    from "./pages/LoginPage";
+import Dashboard    from "./pages/Dashboard";
+import TrainerPage  from "./pages/TrainerPage";
+import PackagesPage from "./pages/PackagesPage";
 
 const isAuthenticated = () => !!localStorage.getItem("fm_token");
 
@@ -23,6 +24,9 @@ export default function App() {
       } />
       <Route path="/trainers" element={
         <ProtectedRoute><TrainerPage /></ProtectedRoute>
+      } />
+      <Route path="/packages" element={
+        <ProtectedRoute><PackagesPage /></ProtectedRoute>
       } />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
