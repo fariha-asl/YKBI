@@ -4,6 +4,7 @@ import LoginPage    from "./pages/LoginPage";
 import Dashboard    from "./pages/Dashboard";
 import TrainerPage  from "./pages/TrainerPage";
 import PackagesPage from "./pages/PackagesPage";
+import MembersPage  from "./pages/MembersPage";
 
 const isAuthenticated = () => !!localStorage.getItem("fm_token");
 
@@ -27,6 +28,9 @@ export default function App() {
       } />
       <Route path="/packages" element={
         <ProtectedRoute><PackagesPage /></ProtectedRoute>
+      } />
+      <Route path="/members" element={
+        <ProtectedRoute><MembersPage /></ProtectedRoute>
       } />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

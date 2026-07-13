@@ -520,7 +520,7 @@ export default function Dashboard() {
         {NAV_ITEMS.map(({ label, icon }) => {
           const active = label === activeNav;
           return (
-            <button key={label} onClick={() => { setActiveNav(label); if(label==="Trainers") navigate("/trainers"); if(label==="Packages") navigate("/packages"); }} style={{
+            <button key={label} onClick={() => { setActiveNav(label); if(label==="Trainers") navigate("/trainers"); if(label==="Packages") navigate("/packages"); if(label==="Members") navigate("/members"); }} style={{
               background:"none", border:"none", cursor:"pointer",
               padding:"13px 16px", fontSize:13,
               fontWeight: active ? 700 : 500,
