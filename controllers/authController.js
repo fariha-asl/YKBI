@@ -1,16 +1,13 @@
-// backend/controllers/authController.js
 const jwt  = require("jsonwebtoken");
 const User = require("../models/User");
 
-// ── Helper: sign JWT ─────────────────────────────────────────────────────────
 const signToken = (userId) =>
   jwt.sign({ id: userId }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || "7d",
   });
 
-// ── Helper: send token + user in response ────────────────────────────────────
 const sendToken = (res, user, statusCode = 200) => {
-  const token = signToken(user._id);
+  const token = signToken(user.id);
   res.status(statusCode).json({
     success: true,
     token,
@@ -18,12 +15,10 @@ const sendToken = (res, user, statusCode = 200) => {
   });
 };
 
-// ── POST /api/auth/register ──────────────────────────────────────────────────
 exports.register = async (req, res) => {
   try {
     const { fullName, username, password, confirmPassword, whatsapp } = req.body;
 
-    // Basic validation
     if (!fullName || !username || !password || !confirmPassword || !whatsapp) {
       return res.status(400).json({ success: false, message: "All fields are required." });
     }
@@ -34,14 +29,12 @@ exports.register = async (req, res) => {
       return res.status(400).json({ success: false, message: "Password must be at least 6 characters." });
     }
 
-    // Sanitise WhatsApp: digits only, min 7
     const waDigits = whatsapp.replace(/\D/g, "");
     if (waDigits.length < 7) {
       return res.status(400).json({ success: false, message: "Enter a valid WhatsApp number." });
     }
 
-    // Duplicate username check
-    const existing = await User.findOne({ username: username.toLowerCase().trim() });
+    const existing = await User.findOne({ where: { username: username.toLowerCase().trim() } });
     if (existing) {
       return res.status(409).json({ success: false, message: "Username already taken." });
     }
@@ -55,9 +48,8 @@ exports.register = async (req, res) => {
 
     sendToken(res, user, 201);
   } catch (err) {
-    // Mongoose validation errors
-    if (err.name === "ValidationError") {
-      const msg = Object.values(err.errors).map((e) => e.message).join(" ");
+    if (err.name === "SequelizeValidationError") {
+      const msg = err.errors.map((e) => e.message).join(" ");
       return res.status(400).json({ success: false, message: msg });
     }
     console.error("register error:", err);
@@ -65,7 +57,6 @@ exports.register = async (req, res) => {
   }
 };
 
-// ── POST /api/auth/login ─────────────────────────────────────────────────────
 exports.login = async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -74,8 +65,9 @@ exports.login = async (req, res) => {
       return res.status(400).json({ success: false, message: "Username and password are required." });
     }
 
-    // Explicitly select password (it's excluded by default)
-    const user = await User.findOne({ username: username.toLowerCase().trim() }).select("+password");
+    const user = await User.scope("withPassword").findOne({
+      where: { username: username.toLowerCase().trim() },
+    });
 
     if (!user || !(await user.matchPassword(password))) {
       return res.status(401).json({ success: false, message: "Invalid username or password." });
@@ -85,9 +77,8 @@ exports.login = async (req, res) => {
       return res.status(403).json({ success: false, message: "Account has been deactivated." });
     }
 
-    // Update last login timestamp
     user.lastLogin = new Date();
-    await user.save({ validateBeforeSave: false });
+    await user.save({ validate: false });
 
     sendToken(res, user);
   } catch (err) {
@@ -96,7 +87,6 @@ exports.login = async (req, res) => {
   }
 };
 
-// ── POST /api/auth/forgot-password ──────────────────────────────────────────
 exports.forgotPassword = async (req, res) => {
   try {
     const { username, whatsapp, newPassword, confirmPassword } = req.body;
@@ -112,7 +102,9 @@ exports.forgotPassword = async (req, res) => {
     }
 
     const waDigits = whatsapp.replace(/\D/g, "");
-    const user = await User.findOne({ username: username.toLowerCase().trim() }).select("+password");
+    const user = await User.scope("withPassword").findOne({
+      where: { username: username.toLowerCase().trim() },
+    });
 
     if (!user) {
       return res.status(404).json({ success: false, message: "Username not found." });
@@ -131,10 +123,9 @@ exports.forgotPassword = async (req, res) => {
   }
 };
 
-// ── GET /api/auth/me  (protected) ────────────────────────────────────────────
 exports.getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.userId);
+    const user = await User.findByPk(req.userId);
     if (!user) return res.status(404).json({ success: false, message: "User not found." });
     res.json({ success: true, user: user.toSafeObject() });
   } catch (err) {

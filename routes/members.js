@@ -1,6 +1,7 @@
 // routes/members.js
 const express = require("express");
 const router = express.Router();
+const { Op } = require("sequelize");
 const Member = require("../models/Member");
 const auth = require("../middleware/auth");
 
@@ -11,31 +12,32 @@ router.use(auth);
 router.get("/", async (req, res) => {
   try {
     const { search = "", filter = "all", page = 1, limit = 10 } = req.query;
-    const query = {};
+    const where = {};
 
-    if (filter === "active") query.status = "active";
-    if (filter === "ending") query.packageExpiry = { $ne: "Unlimited" };
+    if (filter === "active") where.status = "active";
+    if (filter === "ending") where.packageExpiry = { [Op.ne]: "Unlimited" };
 
     if (search) {
-      query.$or = [
-        { firstName: { $regex: search, $options: "i" } },
-        { lastName: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { clientId: { $regex: search, $options: "i" } },
+      where[Op.or] = [
+        { firstName: { [Op.like]: `%${search}%` } },
+        { lastName: { [Op.like]: `%${search}%` } },
+        { email: { [Op.like]: `%${search}%` } },
+        { clientId: { [Op.like]: `%${search}%` } },
       ];
     }
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const limitNum = Math.max(parseInt(limit, 10) || 10, 1);
 
-    const [members, total, totalMembers, activeMembers] = await Promise.all([
-      Member.find(query)
-        .sort({ createdAt: -1 })
-        .skip((pageNum - 1) * limitNum)
-        .limit(limitNum),
-      Member.countDocuments(query),
-      Member.countDocuments({}),
-      Member.countDocuments({ status: "active" }),
+    const [{ count: total, rows: members }, totalMembers, activeMembers] = await Promise.all([
+      Member.findAndCountAll({
+        where,
+        order: [["createdAt", "DESC"]],
+        offset: (pageNum - 1) * limitNum,
+        limit: limitNum,
+      }),
+      Member.count(),
+      Member.count({ where: { status: "active" } }),
     ]);
 
     res.json({
@@ -58,7 +60,7 @@ router.get("/", async (req, res) => {
 // GET /api/members/:id
 router.get("/:id", async (req, res) => {
   try {
-    const member = await Member.findById(req.params.id);
+    const member = await Member.findByPk(req.params.id);
     if (!member) return res.status(404).json({ success: false, message: "Member not found." });
     res.json({ success: true, member });
   } catch (err) {
@@ -76,11 +78,11 @@ router.post("/", async (req, res) => {
     }
 
     if (!payload.clientId) {
-      const count = await Member.countDocuments({});
+      const count = await Member.count();
       payload.clientId = `CR-${String(10000 + count + 1).slice(-5)}`;
     }
 
-    const existing = await Member.findOne({ clientId: payload.clientId });
+    const existing = await Member.findOne({ where: { clientId: payload.clientId } });
     if (existing) {
       return res.status(409).json({ success: false, message: `Client ID ${payload.clientId} already exists.` });
     }
@@ -88,8 +90,8 @@ router.post("/", async (req, res) => {
     const member = await Member.create(payload);
     res.status(201).json({ success: true, member });
   } catch (err) {
-    if (err.name === "ValidationError") {
-      const msg = Object.values(err.errors).map((e) => e.message).join(" ");
+    if (err.name === "SequelizeValidationError") {
+      const msg = err.errors.map((e) => e.message).join(" ");
       return res.status(400).json({ success: false, message: msg });
     }
     console.error("members create error:", err.message);
@@ -100,11 +102,9 @@ router.post("/", async (req, res) => {
 // PUT /api/members/:id  -> update member
 router.put("/:id", async (req, res) => {
   try {
-    const member = await Member.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
+    const member = await Member.findByPk(req.params.id);
     if (!member) return res.status(404).json({ success: false, message: "Member not found." });
+    await member.update(req.body);
     res.json({ success: true, member });
   } catch (err) {
     res.status(500).json({ success: false, message: "Failed to update member." });
@@ -114,8 +114,9 @@ router.put("/:id", async (req, res) => {
 // DELETE /api/members/:id
 router.delete("/:id", async (req, res) => {
   try {
-    const member = await Member.findByIdAndDelete(req.params.id);
+    const member = await Member.findByPk(req.params.id);
     if (!member) return res.status(404).json({ success: false, message: "Member not found." });
+    await member.destroy();
     res.json({ success: true, message: "Member deleted." });
   } catch (err) {
     res.status(500).json({ success: false, message: "Failed to delete member." });

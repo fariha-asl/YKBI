@@ -21,6 +21,15 @@ const NAV_ITEMS = [
   { label:"Settings",  icon:"⚙️" },
 ];
 
+const ROLE_LABELS = { admin:"Administrator", trainer:"Trainer", member:"Member" };
+
+const NOTIFICATIONS = [
+  { icon:"📅", color:C.blue,   title:"Zubayer Mahbub: personal training session", desc:"Your upcoming one-on-one session at the Central Atelier has been confirmed for tomorrow at 8:00 AM.", time:"2 MINS AGO" },
+  { icon:"👥", color:C.acc,    title:"News & Events: Pilates Group class",        desc:"A new 'Core Essentials' class has been added to the Thursday evening schedule. Limited spots available.", time:"4 HOURS AGO" },
+  { icon:"📆", color:C.purple, title:"Semi Private Group Class",                  desc:"The location for your semi-private session has been moved to the Rooftop Terrace due to optimal conditions.", time:"1 DAY AGO" },
+  { icon:"🥤", color:C.yellow, title:"Curated Refreshments",                      desc:"Your post-workout green juice selection has been updated based on your recent dietary preferences.", time:"2 DAYS AGO" },
+];
+
 const COUNTRIES = ["United States","Bangladesh","United Kingdom","Canada","Australia","United Arab Emirates"];
 const GENDERS = ["Male","Female","Other","Prefer not to say"];
 const REFERRAL_TYPES = ["Internal","External","Online","Walk-in","Referral"];
@@ -35,6 +44,11 @@ const Card = ({ children, style={} }) => (
 );
 
 function TopNav({ user, activeNav, onNavClick, onLogout }) {
+  const navigate = useNavigate();
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showNotifMenu, setShowNotifMenu] = useState(false);
+  const [notifTab, setNotifTab] = useState("week");
+  const [showAllStub, setShowAllStub] = useState(false);
   return (
     <>
       <nav style={{
@@ -59,27 +73,150 @@ function TopNav({ user, activeNav, onNavClick, onLogout }) {
           <span style={{ color:C.tl, fontSize:10 }}>▾</span>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:18 }}>
-          <span style={{ fontSize:18, cursor:"pointer", opacity:.7 }}>⚙️</span>
+          <span onClick={() => navigate("/settings")}
+            style={{ fontSize:18, cursor:"pointer", opacity:.7 }}>⚙️</span>
           <span style={{ fontSize:18, cursor:"pointer", opacity:.7 }}>🔍</span>
-          <div style={{ position:"relative", cursor:"pointer" }}>
-            <span style={{ fontSize:18 }}>🔔</span>
-            <div style={{
-              position:"absolute", top:-4, right:-4, width:16, height:16,
-              background:C.red, borderRadius:"50%", fontSize:9,
-              display:"flex", alignItems:"center", justifyContent:"center",
-              color:"#fff", fontWeight:700, border:"2px solid "+C.nav,
-            }}>3</div>
+          <div style={{ position:"relative" }}>
+            <div style={{ position:"relative", cursor:"pointer" }}
+              onClick={() => setShowNotifMenu(v => !v)}>
+              <span style={{ fontSize:18 }}>🔔</span>
+              <div style={{
+                position:"absolute", top:-4, right:-4, width:16, height:16,
+                background:C.red, borderRadius:"50%", fontSize:9,
+                display:"flex", alignItems:"center", justifyContent:"center",
+                color:"#fff", fontWeight:700, border:"2px solid "+C.nav,
+              }}>{NOTIFICATIONS.length}</div>
+            </div>
+            {showNotifMenu && (
+              <>
+                <div onClick={() => setShowNotifMenu(false)}
+                  style={{ position:"fixed", inset:0, zIndex:400 }}/>
+                <div style={{
+                  position:"absolute", top:"calc(100% + 10px)", right:-60, width:340,
+                  background:C.card, borderRadius:14, boxShadow:"0 12px 32px rgba(0,0,0,.2)",
+                  zIndex:401, padding:18,
+                }}>
+                  <div style={{ display:"flex", justifyContent:"space-between",
+                    alignItems:"center", marginBottom:14 }}>
+                    <div style={{ fontWeight:800, fontSize:16, fontFamily:"Georgia,serif",
+                      color:C.dark }}>Notifications</div>
+                    <div style={{ display:"flex", gap:6 }}>
+                      {["week","all"].map((t) => (
+                        <button key={t} onClick={() => setNotifTab(t)} style={{
+                          padding:"5px 10px", borderRadius:8, border:"none", cursor:"pointer",
+                          fontSize:11, fontWeight:700, fontFamily:"inherit",
+                          background: notifTab === t ? C.acc : C.bg,
+                          color: notifTab === t ? "#fff" : C.tm,
+                        }}>{t === "week" ? "This Week" : "All Time"}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ fontSize:10, fontWeight:700, letterSpacing:".08em",
+                    color:C.tl, marginBottom:8 }}>RECENT ACTIVITY</div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:10,
+                    maxHeight:320, overflowY:"auto" }}>
+                    {NOTIFICATIONS.map((n, i) => (
+                      <div key={i} style={{ display:"flex", gap:10, padding:10,
+                        borderRadius:10, background:C.bg }}>
+                        <div style={{ width:34, height:34, borderRadius:9, background:n.color,
+                          display:"flex", alignItems:"center", justifyContent:"center",
+                          fontSize:15, flexShrink:0 }}>{n.icon}</div>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ display:"flex", justifyContent:"space-between", gap:6 }}>
+                            <span style={{ fontSize:12, fontWeight:700, color:C.dark }}>{n.title}</span>
+                            <span style={{ fontSize:9, color:C.tl, whiteSpace:"nowrap" }}>{n.time}</span>
+                          </div>
+                          <p style={{ fontSize:11, color:C.tm, margin:"3px 0 0" }}>{n.desc}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => {
+                    setShowAllStub(true);
+                    setTimeout(() => setShowAllStub(false), 3000);
+                  }} style={{
+                    width:"100%", marginTop:14, padding:"10px", background:C.acc,
+                    color:"#fff", border:"none", borderRadius:9, fontWeight:700,
+                    fontSize:12, cursor:"pointer", fontFamily:"inherit",
+                  }}>SHOW ALL NOTIFICATIONS</button>
+                  {showAllStub && (
+                    <p style={{ fontSize:11, color:C.tl, textAlign:"center", marginTop:8 }}>
+                      🚧 Full notification history is under development.</p>
+                  )}
+                </div>
+              </>
+            )}
           </div>
-          <div style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}
-            onClick={onLogout}>
-            <div style={{
-              width:32, height:32, borderRadius:"50%", background:C.acc,
-              display:"flex", alignItems:"center", justifyContent:"center",
-              color:"#fff", fontSize:13, fontWeight:700,
-            }}>{user?.fullName?.[0] || "U"}</div>
-            <span style={{ color:"#E2E8F0", fontSize:13, fontWeight:600 }}>
-              {user?.fullName?.split(" ")[0] || "HABIB"}</span>
-            <span style={{ color:C.tl, fontSize:10 }}>▾</span>
+          <div style={{ position:"relative" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}
+              onClick={() => setShowProfileMenu(v => !v)}>
+              <div style={{
+                width:32, height:32, borderRadius:"50%", background:C.acc,
+                display:"flex", alignItems:"center", justifyContent:"center",
+                color:"#fff", fontSize:13, fontWeight:700,
+              }}>{user?.fullName?.[0] || "U"}</div>
+              <span style={{ color:"#E2E8F0", fontSize:13, fontWeight:600 }}>
+                {user?.fullName?.split(" ")[0] || "HABIB"}</span>
+              <span style={{ color:C.tl, fontSize:10 }}>▾</span>
+            </div>
+            {showProfileMenu && (
+              <>
+                <div onClick={() => setShowProfileMenu(false)}
+                  style={{ position:"fixed", inset:0, zIndex:400 }}/>
+                <div style={{
+                  position:"absolute", top:"calc(100% + 10px)", right:0, width:260,
+                  background:C.card, borderRadius:14, overflow:"hidden",
+                  boxShadow:"0 12px 32px rgba(0,0,0,.2)", zIndex:401,
+                }}>
+                  <div style={{ background:C.acc, padding:"20px 18px", color:"#fff" }}>
+                    <div style={{ width:44, height:44, borderRadius:"50%",
+                      background:C.acc2, display:"flex", alignItems:"center",
+                      justifyContent:"center", color:"#fff", fontSize:16, fontWeight:700 }}>
+                      {user?.fullName?.[0]||"U"}</div>
+                    <div style={{ fontWeight:700, fontSize:15, marginTop:10 }}>
+                      {user?.fullName}</div>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:4 }}>
+                      <span style={{ fontSize:10, fontWeight:700, letterSpacing:".05em",
+                        background:"rgba(255,255,255,.18)", borderRadius:6, padding:"2px 7px" }}>
+                        {(ROLE_LABELS[user?.role]||user?.role||"Member").toUpperCase()}</span>
+                      <span style={{ fontSize:11, opacity:.85 }}>ID: {user?.id}</span>
+                    </div>
+                  </div>
+                  <div style={{ padding:"8px 0" }}>
+                    <button onClick={() => { setShowProfileMenu(false); navigate("/account"); }}
+                      style={{ width:"100%", display:"flex", alignItems:"center",
+                        justifyContent:"space-between", gap:8, padding:"10px 18px",
+                        background:"none", border:"none", fontSize:13, fontWeight:500,
+                        color:C.dark, fontFamily:"inherit", cursor:"pointer",
+                        textAlign:"left" }}>👤 Account Information</button>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+                      gap:8, padding:"10px 18px", fontSize:13, fontWeight:500, color:C.tl }}>
+                      🏷️ Fit-Manage Subscription
+                      <span style={{ fontSize:9, fontWeight:700, color:C.tl, background:C.bg,
+                        border:`1px solid ${C.border}`, borderRadius:10, padding:"2px 6px" }}>SOON</span>
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+                      gap:8, padding:"10px 18px", fontSize:13, fontWeight:500, color:C.tl }}>
+                      🔔 Notification Settings
+                      <span style={{ fontSize:9, fontWeight:700, color:C.tl, background:C.bg,
+                        border:`1px solid ${C.border}`, borderRadius:10, padding:"2px 6px" }}>SOON</span>
+                    </div>
+                  </div>
+                  <div style={{ borderTop:`1px solid ${C.border}`, padding:"10px 14px" }}>
+                    <button onClick={onLogout} style={{
+                      width:"100%", padding:"9px", background:"#F1F5F9", border:"none",
+                      borderRadius:8, cursor:"pointer", fontSize:13, fontWeight:600,
+                      color:C.dark, fontFamily:"inherit",
+                    }}>↪ Sign Out</button>
+                  </div>
+                  <div style={{ textAlign:"center", padding:"10px 14px 14px",
+                    fontSize:11, color:C.tl }}>
+                    Need assistance? <span style={{ color:C.acc, fontWeight:600,
+                      cursor:"pointer" }}>Contact Support</span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -766,6 +903,7 @@ export default function MembersPage() {
     if (label === "Dashboard") navigate("/dashboard");
     if (label === "Trainers")  navigate("/trainers");
     if (label === "Packages")  navigate("/packages");
+    if (label === "Settings")  navigate("/settings");
     if (label === "Members")   setView("dashboard");
   }, [navigate]);
 

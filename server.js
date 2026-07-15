@@ -1,17 +1,20 @@
 require("dotenv").config();
-// Hardcoded backup token key to prevent JWT crashes if the environment file is missed
-process.env.JWT_SECRET = process.env.JWT_SECRET || "my_super_secret_fitness_key_2026";
-const dns = require('node:dns');
-dns.setServers(['8.8.8.8', '8.8.4.4']); // Forces Google DNS to fix the network block
 const express    = require("express");
-const mongoose   = require("mongoose");
+const sequelize  = require("./config/db");
 const cors       = require("cors");
 const rateLimit  = require("express-rate-limit");
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
 
-
+if (!process.env.DB_NAME) {
+  console.error("DB_NAME is not set. Add it to your .env file (see .env.example).");
+  process.exit(1);
+}
+if (!process.env.JWT_SECRET) {
+  console.error("JWT_SECRET is not set. Add a strong random value to your .env file (see .env.example).");
+  process.exit(1);
+}
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -23,7 +26,6 @@ app.use(cors({
     callback(new Error("CORS blocked: " + origin));
   },
   credentials: true,
-  
 }));
 
 app.use(express.json({ limit: "10kb" }));
@@ -34,6 +36,9 @@ app.use("/api/auth", rateLimit({
 }));
 
 app.use("/api/auth", require("./routes/auth"));
+app.use("/api/members", require("./routes/members"));
+app.use("/api/packages", require("./routes/packages"));
+app.use("/api/trainers", require("./routes/trainers"));
 
 app.get("/health", (_req, res) =>
   res.json({ status: "ok", time: new Date().toISOString() })
@@ -43,14 +48,15 @@ app.use((_req, res) =>
   res.status(404).json({ success: false, message: "Route not found." })
 );
 
-// Force alternative long connection structure to bypass local router firewalls
-mongoose.connect("mongodb+srv://fariha-asl:Asl12345@cluster1.9nr9fio.mongodb.net/YKBI-DB?retryWrites=true&w=majority")
+sequelize.authenticate()
+  .then(() => sequelize.sync())
   .then(() => {
-      console.log("✅ MongoDB cloud connected successfully!");
+      console.log("MySQL connected successfully!");
       app.listen(PORT, () => {
-          console.log(`🚀 Server running on port ${PORT}`);
+          console.log(`Server running on port ${PORT}`);
       });
   })
   .catch(err => {
-      console.error("❌ Database connection error:", err.message);
+      console.error("Database connection error:", err.message);
+      process.exit(1);
   });
