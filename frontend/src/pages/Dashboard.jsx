@@ -56,32 +56,47 @@ const timeToRow = (hhmm) => {
   return hour < 6 ? 0 : TIMES.length - 1;
 };
 
+// Current-time indicator: only shown when "now" falls within the visible 6 AM–8 PM grid.
+const NOW_HOUR = TODAY.getHours();
+const NOW_MINUTE = TODAY.getMinutes();
+const NOW_IN_RANGE = NOW_HOUR >= 6 && NOW_HOUR < 20;
+const NOW_ROW = timeToRow(`${NOW_HOUR}:${NOW_MINUTE}`);
+const NOW_OFFSET_PX = NOW_ROW * ROW_H + (NOW_MINUTE / 60) * ROW_H;
+const NOW_LABEL = TODAY.toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit" });
+
 // ── DAY VIEW data ─────────────────────────────────────────────────────────────
-const DAY_TRAINERS = [
-  { name:"Micle Clark", color:"#22C55E" },
-  { name:"Sara Ahmed",  color:"#3B82F6" },
-  { name:"Tom Reed",    color:"#8B5CF6" },
-  { name:"Nina Paul",   color:"#EC4899" },
-  { name:"James Fox",   color:"#F59E0B" },
-  { name:"Lena Hart",   color:"#EF4444" },
-  { name:"Alex Kim",    color:"#14B8A6" },
-];
-const DAY_COLS = ["SUN 27","MON 28","TUE 29","WED 1","THU 2","FRI 3","SAT 4"];
+// Day view shows one column per real trainer (fetched from /api/trainers),
+// all for today — not a spread of different days like Week view.
+const toISODate = (d) => {
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,"0"), day = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+};
 const DAY_EVENTS = [
   { col:0, row:1, h:1, title:"Semi Private",      time:"07–08 AM", color:"#DCFCE7", border:"#22C55E" },
   { col:1, row:3, h:1, title:"Group Classes",     time:"09–10 AM", color:"#FEF9C3", border:"#F59E0B" },
   { col:2, row:2, h:1, title:"Personal Training", time:"08–09 AM", color:"#FCE7F3", border:"#EC4899" },
   { col:3, row:4, h:1, title:"Personal Training", time:"10–11 AM", color:"#DBEAFE", border:"#3B82F6" },
   { col:4, row:1, h:1, title:"Semi Private",      time:"07–08 AM", color:"#DCFCE7", border:"#22C55E" },
-  { col:6, row:6, h:1, title:"Leave",             time:"",         color:"#F1F5F9", border:"#94A3B8" },
 ];
+
+// Converts a saved "Add Member" appointment into a DayView-shaped event.
+// Only shows appointments booked for today, in the column of the matching trainer.
+const appointmentToDayEvent = (appt, instructors) => {
+  if (appt.date !== toISODate(TODAY)) return null;
+  const colIndex = instructors.findIndex((t) => t.id === appt.trainer?.id);
+  if (colIndex === -1) return null;
+  const row = timeToRow(appt.time);
+  const [hh, mm] = (appt.time || "00:00").split(":").map(Number);
+  const displayTime = new Date(2000, 0, 1, hh, mm).toLocaleTimeString("en-US",
+    { hour:"numeric", minute:"2-digit" });
+  return {
+    id: `appt-${appt.id}`, col: colIndex, row, h: 1,
+    title: appt.category, time: displayTime, color:"#DBEAFE", border:"#3B82F6",
+  };
+};
 
 // ── WEEK VIEW data ────────────────────────────────────────────────────────────
 const WEEK_DAY_LABELS = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
-const toISODate = (d) => {
-  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,"0"), day = String(d.getDate()).padStart(2,"0");
-  return `${y}-${m}-${day}`;
-};
 const generateWeekDays = () => {
   const days = [];
   for (let i = 0; i < 6; i++) {
@@ -141,11 +156,23 @@ const generateMonthDays = () => {
   ];
   for (let d = 1; d <= daysInMonth; d++) {
     const events = d % 3 === 0 ? [sampleEvents[d % sampleEvents.length]] : [];
-    days.push({ day:d, isToday: d === TODAY.getDate(), events });
+    days.push({ day:d, iso: toISODate(new Date(year, month, d)), isToday: d === TODAY.getDate(), events });
   }
   return days;
 };
 const MONTH_DAYS = generateMonthDays();
+
+// Adds a saved "Add Member" appointment as an event chip on the matching day
+// of a MonthView days array. Returns { updated, matched } — matched is false
+// if the appointment's date falls outside the currently displayed month.
+const addAppointmentToMonthDays = (monthDays, appt) => {
+  const idx = monthDays.findIndex((d) => d.iso === appt.date);
+  if (idx === -1) return { updated: monthDays, matched: false };
+  const chip = { title: appt.category, color:"#3B82F6" };
+  const updated = monthDays.map((d, i) =>
+    i === idx ? { ...d, events: [...d.events, chip] } : d);
+  return { updated, matched: true };
+};
 
 // ── YEAR VIEW data ────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -218,35 +245,37 @@ const Card = ({ children, style={} }) => (
 // CALENDAR VIEWS
 // ══════════════════════════════════════════════════════════════════════════════
 
-function DayView({ events, onEventClick }) {
+function DayView({ events, onEventClick, instructors }) {
+  // instructors already carry a stable `.col` (assigned before any filtering
+  // by the caller), so event-to-column matching stays correct even when the
+  // "All Instructors" dropdown narrows the list down to one trainer.
   return (
     <div style={{ overflowX:"auto" }}>
       <div style={{ minWidth:750 }}>
         {/* Trainer avatar header */}
         <div style={{ display:"flex", borderBottom:`1px solid ${C.border}` }}>
           <div style={{ width:72, flexShrink:0 }}/>
-          {DAY_COLS.map((col, ci) => (
-            <div key={col} style={{
+          {instructors.map((t) => (
+            <div key={t.id} style={{
               flex:1, display:"flex", flexDirection:"column",
               alignItems:"center", padding:"10px 4px",
               borderLeft:`1px solid ${C.border}`,
-              background: col.includes("WED") ? "#F0FDF4" : "transparent",
             }}>
-              <Avatar name={DAY_TRAINERS[ci]?.name||"T"}
-                color={DAY_TRAINERS[ci]?.color||C.tl} size={30}/>
-              <div style={{ fontSize:10, color:C.tm, marginTop:4,
-                fontWeight:500, textAlign:"center" }}>
-                {DAY_TRAINERS[ci]?.name?.split(" ")[0]||"—"}</div>
+              <Avatar name={t.name} color={t.color || C.tl} size={30}/>
+              <div style={{ fontSize:11, color:C.dark, marginTop:4,
+                fontWeight:700, textAlign:"center" }}>
+                {t.name}</div>
               <div style={{ fontSize:9, color:C.tl }}>Total Clients</div>
-              <div style={{ fontSize:11, fontWeight:700,
-                color: col.includes("WED") ? C.acc : C.tm }}>
-                {col}</div>
             </div>
           ))}
+          {instructors.length === 0 && (
+            <div style={{ flex:1, textAlign:"center", padding:"10px 4px",
+              fontSize:12, color:C.tl }}>No trainers found</div>
+          )}
         </div>
         {/* Grid — scrolls vertically so extended hours don't push the whole page down */}
         <div style={{ maxHeight:CALENDAR_GRID_MAX_HEIGHT, overflowY:"auto" }}>
-        <div style={{ display:"flex" }}>
+        <div style={{ display:"flex", position:"relative" }}>
           <div style={{ width:72, flexShrink:0 }}>
             {TIMES.map(t => (
               <div key={t} style={{
@@ -256,17 +285,26 @@ function DayView({ events, onEventClick }) {
               }}>{t}</div>
             ))}
           </div>
-          {DAY_COLS.map((col, ci) => (
-            <div key={col} style={{
+          {instructors.map((t) => (
+            <div key={t.id} style={{
               flex:1, position:"relative",
               borderLeft:`1px solid ${C.border}`,
-              background: col.includes("WED") ? "rgba(240,253,244,.25)" : "transparent",
             }}>
               {TIMES.map((_,ri) => (
                 <div key={ri} style={{ height:ROW_H,
                   borderBottom:`1px solid ${C.border}` }}/>
               ))}
-              {events.filter(e=>e.col===ci).map((ev) => (
+              {/* Lunch Break — blocked-out slot, 12 PM–02 PM */}
+              {t.col === 0 && (
+                <div style={{
+                  position:"absolute", top:timeToRow("12:00")*ROW_H, left:0, right:0,
+                  height:ROW_H*2, background:"repeating-linear-gradient(135deg, #F1F5F9, #F1F5F9 6px, #F8FAFC 6px, #F8FAFC 12px)",
+                  border:`1px dashed ${C.border}`, display:"flex", alignItems:"center",
+                  justifyContent:"center", fontSize:12, color:C.tm, fontWeight:600,
+                  pointerEvents:"none",
+                }}>Lunch Break</div>
+              )}
+              {events.filter(e=>e.col===t.col).map((ev) => (
                 <div key={ev.id} onClick={() => onEventClick(ev)} style={{
                   position:"absolute", top:ev.row*ROW_H+3,
                   height:ev.h*ROW_H-6, left:3, right:3,
@@ -283,6 +321,20 @@ function DayView({ events, onEventClick }) {
               ))}
             </div>
           ))}
+          {/* Current-time indicator */}
+          {NOW_IN_RANGE && (
+            <>
+              <div style={{
+                position:"absolute", top:NOW_OFFSET_PX, left:72, right:0,
+                height:2, background:C.red, zIndex:5, pointerEvents:"none",
+              }}/>
+              <div style={{
+                position:"absolute", top:NOW_OFFSET_PX-9, left:4,
+                background:C.red, color:"#fff", fontSize:9, fontWeight:700,
+                padding:"2px 6px", borderRadius:4, zIndex:5,
+              }}>{NOW_LABEL}</div>
+            </>
+          )}
         </div>
         </div>
       </div>
@@ -382,7 +434,7 @@ function WeekView({ events, onEventClick }) {
   );
 }
 
-function MonthView() {
+function MonthView({ days }) {
   return (
     <div style={{ padding:"0 4px 8px" }}>
       <div style={{ fontWeight:700, fontSize:15, color:C.dark, padding:"8px 4px 14px" }}>
@@ -398,7 +450,7 @@ function MonthView() {
       </div>
       {/* Days grid */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)" }}>
-        {MONTH_DAYS.map((d, i) => (
+        {days.map((d, i) => (
           <div key={i} style={{
             minHeight:90, padding:"6px 8px",
             border:`1px solid ${C.border}`,
@@ -539,23 +591,14 @@ function AddAppointmentModal({ onClose, onCreated }) {
   const [notifyTrainerChannels, setNotifyTrainerChannels] = useState([]);
 
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
+  const [savedMessage, setSavedMessage] = useState("");
 
   useEffect(() => {
-    // TrainerPage.jsx keeps its trainers in localStorage rather than the
-    // real backend — read the same list here so the picker matches what's
-    // actually shown on the Trainers page.
-    let list = [];
-    try {
-      const s = localStorage.getItem("fm_trainers");
-      if (s) list = JSON.parse(s);
-    } catch (e) {}
-    const q = trainerSearch.trim().toLowerCase();
-    const filtered = q
-      ? list.filter((t) =>
-          t.name?.toLowerCase().includes(q) || t.role?.toLowerCase().includes(q))
-      : list;
-    setTrainers(filtered);
+    let cancelled = false;
+    api.get("/trainers", { params: { search: trainerSearch, limit: 12 } })
+      .then((res) => { if (!cancelled) setTrainers(res.data.data || []); })
+      .catch(() => { if (!cancelled) setTrainers([]); });
+    return () => { cancelled = true; };
   }, [trainerSearch]);
 
   useEffect(() => {
@@ -597,9 +640,16 @@ function AddAppointmentModal({ onClose, onCreated }) {
       createdAt: new Date().toISOString(),
     };
     saveAppointments([...loadAppointments(), appt]);
-    onCreated?.(appt);
-    setSaved(true);
-    setTimeout(onClose, 1200);
+    const shownOnCalendar = onCreated?.(appt);
+    if (shownOnCalendar) {
+      setSavedMessage("✓ Appointment saved and added to the calendar.");
+      setTimeout(onClose, 1200);
+    } else {
+      setSavedMessage(
+        "✓ Appointment saved — but its date is outside the calendar's currently visible week, so it won't show there right now."
+      );
+      setTimeout(onClose, 3200);
+    }
   };
 
   const segStyle = (active) => ({
@@ -694,24 +744,33 @@ function AddAppointmentModal({ onClose, onCreated }) {
           <p style={{ fontSize:11, fontWeight:700, letterSpacing:".08em",
             textTransform:"uppercase", color:C.tl, margin:0 }}>Select Trainer</p>
         </div>
-        <input placeholder="Search by name or specialty" value={trainerSearch}
-          onChange={(e) => setTrainerSearch(e.target.value)} style={{
-            width:"100%", border:`1px solid ${C.border}`, borderRadius:10,
-            padding:"10px 12px", fontSize:13, fontFamily:"inherit", marginBottom:12,
-          }}/>
+        <div style={{ position:"relative", marginBottom:12 }}>
+          <input placeholder="Search by name or specialty" value={trainerSearch}
+            onChange={(e) => setTrainerSearch(e.target.value)}
+            autoComplete="off" name="trainer-search-no-autofill" style={{
+              width:"100%", border:`1px solid ${C.border}`, borderRadius:10,
+              padding:"10px 34px 10px 12px", fontSize:13, fontFamily:"inherit",
+            }}/>
+          {trainerSearch && (
+            <span onClick={() => setTrainerSearch("")} style={{
+              position:"absolute", right:12, top:"50%", transform:"translateY(-50%)",
+              cursor:"pointer", color:C.tl, fontSize:14,
+            }}>✕</span>
+          )}
+        </div>
         <div style={{ display:"flex", gap:12, overflowX:"auto", paddingBottom:4 }}>
           {trainers.map((t) => {
             const active = selectedTrainer?.id === t.id;
             return (
-              <div key={t.id} onClick={() => setSelectedTrainer(t)} style={{
+              <button key={t.id} type="button" onClick={() => setSelectedTrainer(t)} style={{
                 flexShrink:0, width:100, textAlign:"center", cursor:"pointer",
                 border:`1.5px solid ${active ? C.acc : "transparent"}`,
-                borderRadius:12, padding:8,
+                borderRadius:12, padding:8, background:"none", fontFamily:"inherit",
               }}>
                 <Avatar name={t.name} color={active ? C.acc : C.purple} size={52}/>
                 <div style={{ fontSize:12, fontWeight:700, color:C.dark, marginTop:6 }}>{t.name}</div>
                 <div style={{ fontSize:10, color:C.tl }}>{t.role}</div>
-              </div>
+              </button>
             );
           })}
           {trainers.length === 0 && (
@@ -751,7 +810,8 @@ function AddAppointmentModal({ onClose, onCreated }) {
         {showMemberSearch ? (
           <>
             <input placeholder="Search members by name" value={memberSearch} autoFocus
-              onChange={(e) => setMemberSearch(e.target.value)} style={{
+              onChange={(e) => setMemberSearch(e.target.value)}
+              autoComplete="off" name="member-search-no-autofill" style={{
                 width:"100%", border:`1px solid ${C.border}`, borderRadius:10,
                 padding:"10px 12px", fontSize:13, fontFamily:"inherit", marginBottom:8,
               }}/>
@@ -834,9 +894,9 @@ function AddAppointmentModal({ onClose, onCreated }) {
         {error && (
           <p style={{ fontSize:12, color:C.red, fontWeight:600, marginTop:14 }}>{error}</p>
         )}
-        {saved && (
+        {savedMessage && (
           <p style={{ fontSize:12, color:"#15803D", fontWeight:600, marginTop:14 }}>
-            ✓ Appointment saved.</p>
+            {savedMessage}</p>
         )}
 
         <button onClick={handleSubmit} style={{
@@ -950,7 +1010,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [user, setUser]             = useState(null);
   const [activeNav, setActiveNav]   = useState("Dashboard");
-  const [calView, setCalView]       = useState("Week");
+  const [calView, setCalView]       = useState("Day");
   const [memberTab, setMemberTab]   = useState("Monthly");
   const [chartRange, setChartRange] = useState("Weekly");
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -984,6 +1044,7 @@ export default function Dashboard() {
   const [selectedInstructor, setSelectedInstructor] = useState("All Instructors");
   const [dayEvents, setDayEvents] = useState(() => DAY_EVENTS.map((e, i) => ({ ...e, id:`day-${i}` })));
   const [weekEvents, setWeekEvents] = useState(() => WEEK_EVENTS.map((e, i) => ({ ...e, id:`week-${i}` })));
+  const [monthDays, setMonthDays] = useState(MONTH_DAYS);
   const [editingEvent, setEditingEvent] = useState(null);
   const [editingEventSource, setEditingEventSource] = useState(null);
 
@@ -1003,14 +1064,23 @@ export default function Dashboard() {
     closeEventEditor();
   };
 
-  // Adds one saved "Add Member" appointment onto the calendar if its date falls
-  // within the currently visible week; skips it (silently) otherwise.
+  // Adds one saved "Add Member" appointment onto every calendar view whose
+  // currently-displayed range covers the appointment's date. Returns true if
+  // it landed on at least one of them (Week/Day/Month).
   const addAppointmentToCalendar = (appt) => {
-    const ev = appointmentToWeekEvent(appt);
-    if (ev) {
-      setWeekEvents((prev) => [...prev, ev]);
-      setCalView("Week");
-    }
+    let placed = false;
+
+    const weekEv = appointmentToWeekEvent(appt);
+    if (weekEv) { setWeekEvents((prev) => [...prev, weekEv]); placed = true; }
+
+    const dayEv = appointmentToDayEvent(appt, instructors);
+    if (dayEv) { setDayEvents((prev) => [...prev, dayEv]); placed = true; }
+
+    const { updated: newMonthDays, matched } = addAppointmentToMonthDays(monthDays, appt);
+    if (matched) { setMonthDays(newMonthDays); placed = true; }
+
+    if (placed) setCalView("Week");
+    return placed;
   };
 
   useEffect(() => {
@@ -1018,17 +1088,35 @@ export default function Dashboard() {
     if (!stored) { navigate("/login"); return; }
     setUser(JSON.parse(stored));
 
-    // Same trainer list shown on TrainerPage.jsx (kept in localStorage there).
-    try {
-      const s = localStorage.getItem("fm_trainers");
-      if (s) setInstructors(JSON.parse(s));
-    } catch (e) {}
+    // Same trainer list shown on TrainerPage.jsx.
+    api.get("/trainers", { params: { limit: 100 } })
+      .then((res) => {
+        const list = res.data.data || [];
+        setInstructors(list);
 
-    // Show any previously-saved appointments that fall in the visible week.
+        // Day view needs the resolved trainer list to match appointments to
+        // columns, so its replay runs here rather than alongside Week/Month.
+        try {
+          const saved = JSON.parse(localStorage.getItem("fm_appointments") || "[]");
+          const dayEvs = saved.map((appt) => appointmentToDayEvent(appt, list)).filter(Boolean);
+          if (dayEvs.length) setDayEvents((prev) => [...prev, ...dayEvs]);
+        } catch (e) {}
+      })
+      .catch(() => {});
+
+    // Show any previously-saved appointments that fall within each view's range.
     try {
       const saved = JSON.parse(localStorage.getItem("fm_appointments") || "[]");
-      const events = saved.map(appointmentToWeekEvent).filter(Boolean);
-      if (events.length) setWeekEvents((prev) => [...prev, ...events]);
+      const weekEvs = saved.map(appointmentToWeekEvent).filter(Boolean);
+      if (weekEvs.length) setWeekEvents((prev) => [...prev, ...weekEvs]);
+
+      let mDays = MONTH_DAYS;
+      let mChanged = false;
+      saved.forEach((appt) => {
+        const { updated, matched } = addAppointmentToMonthDays(mDays, appt);
+        if (matched) { mDays = updated; mChanged = true; }
+      });
+      if (mChanged) setMonthDays(mDays);
     } catch (e) {}
   }, []);
 
@@ -1038,11 +1126,18 @@ export default function Dashboard() {
     navigate("/login");
   };
 
+  // Stable column index assigned before filtering, so event-to-column
+  // matching (dayEvents' `col`) stays correct when a specific instructor
+  // is picked from the "All Instructors" dropdown.
+  const dayViewInstructors = instructors
+    .map((t, i) => ({ ...t, col: i }))
+    .filter((t) => selectedInstructor === "All Instructors" || t.name === selectedInstructor);
+
   const renderCalendar = () => {
     switch(calView) {
-      case "Day":   return <DayView events={dayEvents} onEventClick={openEventEditor("day")}/>;
+      case "Day":   return <DayView events={dayEvents} onEventClick={openEventEditor("day")} instructors={dayViewInstructors}/>;
       case "Week":  return <WeekView events={weekEvents} onEventClick={openEventEditor("week")}/>;
-      case "Month": return <MonthView />;
+      case "Month": return <MonthView days={monthDays}/>;
       case "Year":  return <YearView />;
       default:      return <WeekView events={weekEvents} onEventClick={openEventEditor("week")}/>;
     }
@@ -1356,9 +1451,7 @@ export default function Dashboard() {
             <div style={{ display:"flex", justifyContent:"space-between",
               marginBottom:10 }}>
               <span style={{ fontSize:12, fontWeight:700,
-                color:C.dark }}>Package Ending
-                <span style={{ fontWeight:500, color:C.tl }}>
-                  {" "}({memberTab === "Weekly" ? "this week" : "this month"})</span></span>
+                color:C.dark }}>Package Ending</span>
               <span onClick={() => navigate("/members")} style={{ fontSize:12, color:C.acc,
                 cursor:"pointer", fontWeight:600 }}>View All</span>
             </div>
@@ -1435,7 +1528,7 @@ export default function Dashboard() {
                     flexDirection:"column", alignItems:"center", gap:4 }}>
                     {b.day===peak.day && (
                       <div style={{ fontSize:10, color:C.acc,
-                        fontWeight:700 }}>Peak</div>
+                        fontWeight:700 }}>{chartRange === "Weekly" ? "+3 Members" : "Peak"}</div>
                     )}
                     <div style={{
                       width:"100%", borderRadius:"6px 6px 0 0",
@@ -1500,9 +1593,9 @@ export default function Dashboard() {
                   marginBottom:12 }}>Members Growth</div>
                 <div style={{ display:"flex", alignItems:"flex-end",
                   gap:5, height:72 }}>
-                  {[28,42,32,58,78,52,68,88].map((h,i) => (
+                  {[28,42,32,58,78,52].map((h,i) => (
                     <div key={i} style={{ flex:1, height:h*0.75,
-                      background: i===7 ? C.acc : "#E2E8F0",
+                      background: i===4 ? C.acc : "#E2E8F0",
                       borderRadius:"3px 3px 0 0" }}/>
                   ))}
                 </div>
@@ -1530,7 +1623,7 @@ export default function Dashboard() {
                 background:"none", border:`1px solid ${C.border}`,
                 borderRadius:7, padding:"5px 12px", cursor:"pointer",
                 fontSize:12, color:C.tm, fontFamily:"inherit",
-              }}>{attentionFilter} ▾</button>
+              }}>{attentionFilter === "All Members" ? "View Filter" : attentionFilter} ▾</button>
               {showFilterMenu && (
                 <>
                   <div onClick={() => setShowFilterMenu(false)}

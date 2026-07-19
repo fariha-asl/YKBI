@@ -1,6 +1,7 @@
 // frontend/src/pages/TrainerPage.jsx
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import api from "../api";
 
 const C = {
   acc:"#1A6B4A", acc2:"#22C55E", dark:"#0F172A",
@@ -17,14 +18,6 @@ const NAV_ITEMS = [
   { label:"Members",   icon:"👥" },
   { label:"Reports",   icon:"📊" },
   { label:"Settings",  icon:"⚙️" },
-];
-
-const INITIAL_TRAINERS = [
-  { id:1,  name:"Elena Vance",   role:"Senior Design Lead",      location:"Gulshan 1, Dhaka", status:"ACTIVE",  email:"elena@studio.com",   phone:"+1 (555) 012-3456", emergency:"Faisal Ahmed (Husband)", bio:"Elena leads the visual language of the Curator ecosystem. With over a decade of experience in editorial design and architecture, she brings a structured yet fluid approach to product development.", tenure:"6.4 Yrs", classes:1254, desk:true,  instructor:true,  teacher:false, avatar:"EV", color:"#8B5CF6" },
-  { id:2,  name:"Julian Rossi",  role:"Technical Architect",     location:"Bariuri, Dhaka",   status:"AWAY",    email:"julian@studio.com",  phone:"+1 (555) 023-4567", emergency:"Maria Rossi (Wife)",    bio:"Julian is the technical backbone of the team, specializing in system architecture and cloud infrastructure. He ensures scalability across all platforms.",                                  tenure:"4.2 Yrs", classes:980,  desk:true,  instructor:false, teacher:true,  avatar:"JR", color:"#3B82F6" },
-  { id:3,  name:"Sarah Drasner", role:"Senior Researcher",       location:"Gulshan 2, Dhaka", status:"ACTIVE",  email:"sarah@studio.com",   phone:"+1 (555) 034-5678", emergency:"Tom Drasner (Brother)", bio:"Sarah brings deep expertise in user research and behavioral psychology. She transforms raw data into actionable design insights that drive product decisions.",                           tenure:"3.8 Yrs", classes:756,  desk:false, instructor:true,  teacher:true,  avatar:"SD", color:"#22C55E" },
-  { id:4,  name:"Marcus Thorne", role:"Operations Manager",      location:"Dhanmondi, Dhaka", status:"OFFLINE", email:"marcus@studio.com",  phone:"+1 (555) 045-6789", emergency:"Lisa Thorne (Spouse)",  bio:"Marcus oversees the day-to-day operations of our global offices. His background in logistics and process optimization has streamlined workflows across 12 departments.",                tenure:"7.1 Yrs", classes:1456, desk:true,  instructor:false, teacher:false, avatar:"MT", color:"#F59E0B" },
-  { id:5,  name:"Lina Zhang",    role:"Visual Designer",         location:"Singpara, Dhaka",  status:"ACTIVE",  email:"lina@studio.com",    phone:"+1 (555) 056-7890", emergency:"Wei Zhang (Father)",    bio:"Lina crafts the visual experiences that define our brand. Her expertise in motion design and illustration brings personality to every pixel.",                                           tenure:"2.5 Yrs", classes:542,  desk:true,  instructor:true,  teacher:false, avatar:"LZ", color:"#EC4899" },
 ];
 
 const STATS = [
@@ -596,34 +589,13 @@ function TrainerProfile({ trainer, onUpdate }) {
   );
 }
 
-// ── localStorage helpers ─────────────────────────────────────────────────────
-const STORAGE_KEY = "fm_trainers";
-
-const loadTrainers = () => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch(e) {}
-  // First time: save defaults then return them
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_TRAINERS));
-  return INITIAL_TRAINERS;
-};
-
-const saveTrainers = (data) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch(e) {}
-};
-
 // ── MAIN TRAINER PAGE ─────────────────────────────────────────────────────────
 export default function TrainerPage() {
   const navigate = useNavigate();
   const [user, setUser]                 = useState(null);
-  const [trainers, setTrainers]         = useState(() => loadTrainers());
-  const [selectedTrainer, setSelected]  = useState(() => loadTrainers()[0]);
+  const [trainers, setTrainers]         = useState([]);
+  const [selectedTrainer, setSelected]  = useState(null);
+  const [loading, setLoading]           = useState(true);
   const [showModal, setShowModal]       = useState(false);
   const [search, setSearch]             = useState("");
   const [activeNav, setActiveNav]       = useState("Trainers");
@@ -633,14 +605,23 @@ export default function TrainerPage() {
   const [notifTab, setNotifTab] = useState("week");
   const [showAllStub, setShowAllStub] = useState(false);
 
+  const loadFromApi = () => {
+    setLoading(true);
+    api.get("/trainers", { params: { limit: 100 } })
+      .then((res) => {
+        const list = res.data.data || [];
+        setTrainers(list);
+        setSelected(list[0] || null);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
   useEffect(() => {
     const stored = localStorage.getItem("fm_user");
     if (!stored) { navigate("/login"); return; }
     setUser(JSON.parse(stored));
-    // Load latest trainers from storage on mount
-    const latest = loadTrainers();
-    setTrainers(latest);
-    setSelected(latest[0]);
+    loadFromApi();
   }, []);
 
   const logout = () => {
@@ -658,35 +639,35 @@ export default function TrainerPage() {
   };
 
   const handleSaveTrainer = (newTrainer, addAnother) => {
-    setTrainers(prev => {
-      const updated = [...prev, newTrainer];
-      saveTrainers(updated);   // ✅ persist to localStorage
-      return updated;
-    });
-    if (!addAnother) {
-      setShowModal(false);
-      setSelected(newTrainer);
-    }
+    const { id, ...payload } = newTrainer;
+    api.post("/trainers", payload).then((res) => {
+      const created = res.data.trainer;
+      setTrainers(prev => [...prev, created]);
+      if (!addAnother) {
+        setShowModal(false);
+        setSelected(created);
+      }
+    }).catch(() => {});
   };
 
   const handleUpdateTrainer = (updated) => {
-    setTrainers(prev => {
-      const newList = prev.map(t => t.id===updated.id ? updated : t);
-      saveTrainers(newList);   // ✅ persist to localStorage
-      return newList;
-    });
-    setSelected(updated);
+    api.put(`/trainers/${updated.id}`, updated).then((res) => {
+      const saved = res.data.trainer;
+      setTrainers(prev => prev.map(t => t.id === saved.id ? saved : t));
+      setSelected(saved);
+    }).catch(() => {});
   };
 
   const handleDeleteTrainer = (id) => {
-    setTrainers(prev => {
-      const newList = prev.filter(t => t.id !== id);
-      saveTrainers(newList);   // ✅ persist to localStorage
-      if (selectedTrainer?.id === id) {
-        setSelected(newList[0] || null);
-      }
-      return newList;
-    });
+    api.delete(`/trainers/${id}`).then(() => {
+      setTrainers(prev => {
+        const newList = prev.filter(t => t.id !== id);
+        if (selectedTrainer?.id === id) {
+          setSelected(newList[0] || null);
+        }
+        return newList;
+      });
+    }).catch(() => {});
   };
 
   const filtered = trainers.filter(t => {

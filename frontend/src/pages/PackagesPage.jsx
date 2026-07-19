@@ -1,6 +1,7 @@
 // frontend/src/pages/PackagesPage.jsx
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import api from "../api";
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const C = {
@@ -43,32 +44,6 @@ const TYPE_COLORS = {
   Packages:     { bg:"#FEF9C3", color:"#854d0e" },
   Memberships:  { bg:"#F3E8FF", color:"#6b21a8" },
 };
-
-// ── Storage ───────────────────────────────────────────────────────────────────
-const PKG_KEY = "fm_packages";
-
-const DEMO_PACKAGES = [
-  { id:1,  name:"1 Foundation",              sessions:1,  type:"Classes",      category:"Pilates",           price:2875, active:true,  sellOnline:true  },
-  { id:2,  name:"DT-1 Day a Week for 1 Month",sessions:12,type:"Appointments", category:"Personal Training", price:4200, active:true,  sellOnline:true  },
-  { id:3,  name:"DT-3 Days a Week 2 Months", sessions:5,  type:"Packages",     category:"Yoga",              price:450,  active:true,  sellOnline:false },
-  { id:4,  name:"DT-1 Day a Week for 1 Month",sessions:12,type:"Memberships",  category:"Personal Training", price:4200, active:true,  sellOnline:true  },
-  { id:5,  name:"DT-1 Day a Week for 1 Month",sessions:12,type:"Appointments", category:"Personal Training", price:4200, active:true,  sellOnline:true  },
-  { id:6,  name:"DT-1 Day a Week for 1 Month",sessions:12,type:"Memberships",  category:"Personal Training", price:4200, active:true,  sellOnline:true  },
-  { id:7,  name:"DT-1 Day a Week for 1 Month",sessions:12,type:"Memberships",  category:"Personal Training", price:4200, active:true,  sellOnline:true  },
-  { id:8,  name:"DT-1 Day a Week for 1 Month",sessions:12,type:"Memberships",  category:"Personal Training", price:4200, active:true,  sellOnline:true  },
-  { id:9,  name:"DT-1 Day a Week for 1 Month",sessions:12,type:"Memberships",  category:"Personal Training", price:4200, active:true,  sellOnline:true  },
-  { id:10, name:"DT-1 Day a Week for 1 Month",sessions:12,type:"Memberships",  category:"Personal Training", price:4200, active:true,  sellOnline:true  },
-];
-
-const loadPackages = () => {
-  try {
-    const s = localStorage.getItem(PKG_KEY);
-    if (s) { const p = JSON.parse(s); if (Array.isArray(p) && p.length) return p; }
-  } catch(e) {}
-  localStorage.setItem(PKG_KEY, JSON.stringify(DEMO_PACKAGES));
-  return DEMO_PACKAGES;
-};
-const savePackages = (d) => { try { localStorage.setItem(PKG_KEY, JSON.stringify(d)); } catch(e) {} };
 
 // ── Shared UI ─────────────────────────────────────────────────────────────────
 const Card = ({ children, style={} }) => (
@@ -725,9 +700,11 @@ function PackageDashboard({ packages, setPackages, onAddNew, user, activeNav, on
   const [page, setPage]     = useState(1);
   const PER_PAGE = 10;
 
-  const totalRevenue = packages.reduce((s,p) => s+p.price, 0);
-  const liquidCash   = packages.filter(p=>p.type!=="Memberships").reduce((s,p)=>s+p.price, 0);
-  const creditCard   = packages.filter(p=>p.type==="Memberships").reduce((s,p)=>s+p.price, 0);
+  // MySQL DECIMAL columns come back from Sequelize as strings, not numbers —
+  // must convert before doing arithmetic or "+"" will concatenate instead of add.
+  const totalRevenue = packages.reduce((s,p) => s+Number(p.price), 0);
+  const liquidCash   = packages.filter(p=>p.type!=="Memberships").reduce((s,p)=>s+Number(p.price), 0);
+  const creditCard   = packages.filter(p=>p.type==="Memberships").reduce((s,p)=>s+Number(p.price), 0);
 
   const STATS_DATA = [
     { label:"TOTAL VOLUME",        value:`$${(totalRevenue/1000).toFixed(1)}M`, sub:"+12.4% vs last period", subColor:C.acc2 },
@@ -736,16 +713,24 @@ function PackageDashboard({ packages, setPackages, onAddNew, user, activeNav, on
     { label:"CREDIT CARD",         value:`$${creditCard.toLocaleString()}`,  sub:"", subColor:C.tm },
   ];
 
-  const updatePackages = useCallback((updated) => {
+  const updatePackages = useCallback((updated, changedPkg) => {
     setPackages(updated);
-    savePackages(updated);
+    if (changedPkg) api.put(`/packages/${changedPkg.id}`, changedPkg).catch(() => {});
   }, [setPackages]);
 
-  const handleToggleActive  = (id) => updatePackages(packages.map(p => p.id===id ? {...p,active:!p.active}       : p));
-  const handleToggleOnline  = (id) => updatePackages(packages.map(p => p.id===id ? {...p,sellOnline:!p.sellOnline}: p));
+  const handleToggleActive  = (id) => {
+    const updated = packages.map(p => p.id===id ? {...p,active:!p.active} : p);
+    updatePackages(updated, updated.find(p => p.id===id));
+  };
+  const handleToggleOnline  = (id) => {
+    const updated = packages.map(p => p.id===id ? {...p,sellOnline:!p.sellOnline} : p);
+    updatePackages(updated, updated.find(p => p.id===id));
+  };
   const handleDelete        = (id) => {
-    if (window.confirm("Delete this package?"))
-      updatePackages(packages.filter(p => p.id!==id));
+    if (window.confirm("Delete this package?")) {
+      api.delete(`/packages/${id}`).catch(() => {});
+      setPackages(packages.filter(p => p.id!==id));
+    }
   };
 
   const filtered   = packages.filter(p =>
@@ -911,7 +896,7 @@ function PackageDashboard({ packages, setPackages, onAddNew, user, activeNav, on
                 whiteSpace:"nowrap" }}>{pkg.category}</div>
 
               <div style={{ fontSize:13, fontWeight:600, color:C.dark }}>
-                USD {pkg.price.toLocaleString("en-US",{minimumFractionDigits:2})}
+                USD {Number(pkg.price).toLocaleString("en-US",{minimumFractionDigits:2})}
               </div>
 
               <Toggle on={pkg.active}   onChange={() => handleToggleActive(pkg.id)}/>
@@ -985,14 +970,20 @@ export default function PackagesPage() {
   const navigate = useNavigate();
   const [user, setUser]           = useState(null);
   const [view, setView]           = useState("dashboard");
-  const [packages, setPackages]   = useState(() => loadPackages());
+  const [packages, setPackages]   = useState([]);
   const [activeNav, setActiveNav] = useState("Packages");
+
+  const loadFromApi = () => {
+    api.get("/packages", { params: { limit: 100 } })
+      .then((res) => setPackages(res.data.data || []))
+      .catch(() => {});
+  };
 
   useEffect(() => {
     const stored = localStorage.getItem("fm_user");
     if (!stored) { navigate("/login"); return; }
     setUser(JSON.parse(stored));
-    setPackages(loadPackages());
+    loadFromApi();
   }, []);
 
   const handleNavClick = useCallback((label) => {
@@ -1011,12 +1002,11 @@ export default function PackagesPage() {
   }, [navigate]);
 
   const handleSavePackage = useCallback((pkg, addAnother) => {
-    setPackages(prev => {
-      const updated = [...prev, pkg];
-      savePackages(updated);
-      return updated;
-    });
-    if (!addAnother) setView("dashboard");
+    const { id, ...payload } = pkg;
+    api.post("/packages", payload).then((res) => {
+      setPackages(prev => [...prev, res.data.package]);
+      if (!addAnother) setView("dashboard");
+    }).catch(() => {});
   }, []);
 
   if (view === "add") {
