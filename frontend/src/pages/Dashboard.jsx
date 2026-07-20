@@ -12,6 +12,8 @@ const C = {
   purple:"#8B5CF6", pink:"#EC4899",
 };
 
+const CLIENT_AVATAR_COLORS = ["#1A6B4A","#3B82F6","#8B5CF6","#F59E0B","#EC4899","#22C55E","#EF4444"];
+
 const NAV_ITEMS = [
   { label:"Dashboard", icon:"⊞" },
   { label:"Packages",  icon:"📦" },
@@ -72,11 +74,11 @@ const toISODate = (d) => {
   return `${y}-${m}-${day}`;
 };
 const DAY_EVENTS = [
-  { col:0, row:1, h:1, title:"Semi Private",      time:"07–08 AM", color:"#DCFCE7", border:"#22C55E" },
-  { col:1, row:3, h:1, title:"Group Classes",     time:"09–10 AM", color:"#FEF9C3", border:"#F59E0B" },
-  { col:2, row:2, h:1, title:"Personal Training", time:"08–09 AM", color:"#FCE7F3", border:"#EC4899" },
-  { col:3, row:4, h:1, title:"Personal Training", time:"10–11 AM", color:"#DBEAFE", border:"#3B82F6" },
-  { col:4, row:1, h:1, title:"Semi Private",      time:"07–08 AM", color:"#DCFCE7", border:"#22C55E" },
+  { col:0, row:1, h:1, title:"Semi Private",      time:"07–08 AM", color:"#DCFCE7", border:"#22C55E", clientNames:["Tahsan Rahman","Daafhin Islam"] },
+  { col:1, row:3, h:1, title:"Group Classes",     time:"09–10 AM", color:"#FEF9C3", border:"#F59E0B", clientNames:["Hasan Ali","Sameed Quasem","Samira Quasem"] },
+  { col:2, row:2, h:1, title:"Personal Training", time:"08–09 AM", color:"#FCE7F3", border:"#EC4899", clientNames:["Reyan Anis"] },
+  { col:3, row:4, h:1, title:"Personal Training", time:"10–11 AM", color:"#DBEAFE", border:"#3B82F6", clientNames:["Sahar Abdal","Ashna Huq","Naimul Bashar"] },
+  { col:4, row:1, h:1, title:"Semi Private",      time:"07–08 AM", color:"#DCFCE7", border:"#22C55E", clientNames:["Tahsan Rahman"] },
 ];
 
 // Converts a saved "Add Member" appointment into a DayView-shaped event.
@@ -92,6 +94,7 @@ const appointmentToDayEvent = (appt, instructors) => {
   return {
     id: `appt-${appt.id}`, col: colIndex, row, h: 1,
     title: appt.category, time: displayTime, color:"#DBEAFE", border:"#3B82F6",
+    clientNames: (appt.members || []).map((m) => m.name),
   };
 };
 
@@ -102,7 +105,8 @@ const generateWeekDays = () => {
   for (let i = 0; i < 6; i++) {
     const d = new Date(TODAY);
     d.setDate(TODAY.getDate() + i);
-    days.push({ day: WEEK_DAY_LABELS[d.getDay()], date: String(d.getDate()), iso: toISODate(d), isToday: i === 0 });
+    days.push({ day: WEEK_DAY_LABELS[d.getDay()], date: String(d.getDate()), iso: toISODate(d),
+      isToday: i === 0, isWeekend: d.getDay() === 5 }); // Friday is the weekend
   }
   return days;
 };
@@ -120,17 +124,17 @@ const appointmentToWeekEvent = (appt) => {
   return {
     id: `appt-${appt.id}`,
     day: dayIndex, startRow, endRow: startRow + 1,
-    time: displayTime, color:"#DBEAFE", border:"#3B82F6",
-    trainers: 1, clients: appt.members?.length || 0,
+    title: appt.category, time: displayTime, color:"#DBEAFE", border:"#3B82F6",
+    trainerId: appt.trainer?.id, trainerName: appt.trainer?.name,
+    clientNames: (appt.members || []).map((m) => m.name),
   };
 };
 const WEEK_EVENTS = [
-  { day:0, startRow:1, endRow:2, time:"06–07 AM", color:"#DCFCE7", border:"#22C55E", trainers:8,  clients:7  },
-  { day:0, startRow:2, endRow:3, time:"07–08 AM", color:"#FCE7F3", border:"#EC4899", trainers:3,  clients:3  },
-  { day:0, startRow:4, endRow:5, time:"09–10 AM", color:"#FEF9C3", border:"#F59E0B", trainers:8,  clients:11 },
-  { day:1, startRow:5, endRow:6, time:"11–12 AM", color:"#DBEAFE", border:"#3B82F6", trainers:6,  clients:14 },
-  { day:1, startRow:6, endRow:7, time:"12–01 PM", color:"#DCFCE7", border:"#22C55E", trainers:3,  clients:7  },
-  { day:2, startRow:3, endRow:8, time:"Leave",    color:"#F1F5F9", border:"#94A3B8", isLeave:true },
+  { day:0, startRow:1, endRow:2, title:"Semi Private",      time:"06–07 AM", color:"#DCFCE7", border:"#22C55E", clientNames:["Tahsan Rahman","Daafhin Islam"] },
+  { day:0, startRow:2, endRow:3, title:"Personal Training", time:"07–08 AM", color:"#FCE7F3", border:"#EC4899", clientNames:["Reyan Anis"] },
+  { day:0, startRow:4, endRow:5, title:"Group Classes",     time:"09–10 AM", color:"#FEF9C3", border:"#F59E0B", clientNames:["Sahar Abdal","Ashna Huq","Naimul Bashar"] },
+  { day:1, startRow:5, endRow:6, title:"Personal Training", time:"11–12 AM", color:"#DBEAFE", border:"#3B82F6", clientNames:["Sameed Quasem","Samira Quasem"] },
+  { day:1, startRow:6, endRow:7, title:"Semi Private",      time:"12–01 PM", color:"#DCFCE7", border:"#22C55E", clientNames:["Tahsan Rahman"] },
 ];
 
 // ── MONTH VIEW data ───────────────────────────────────────────────────────────
@@ -304,21 +308,44 @@ function DayView({ events, onEventClick, instructors }) {
                   pointerEvents:"none",
                 }}>Lunch Break</div>
               )}
-              {events.filter(e=>e.col===t.col).map((ev) => (
+              {events.filter(e=>e.col===t.col).map((ev) => {
+                const tall = ev.h >= 2;
+                return (
                 <div key={ev.id} onClick={() => onEventClick(ev)} style={{
                   position:"absolute", top:ev.row*ROW_H+3,
                   height:ev.h*ROW_H-6, left:3, right:3,
                   background:ev.color, border:`1.5px solid ${ev.border}`,
-                  borderRadius:9, padding:"5px 8px", cursor:"pointer",
-                  overflow:"hidden",
+                  borderRadius:9, padding:"4px 6px", cursor:"pointer",
+                  overflow:"hidden", display:"flex", flexDirection:"column",
                 }}>
-                  <div style={{ fontSize:11, fontWeight:700,
-                    color:C.dark }}>{ev.title}</div>
-                  {ev.time && (
-                    <div style={{ fontSize:10, color:C.tm }}>{ev.time}</div>
+                  <div style={{ fontSize:11, fontWeight:700, color:C.dark,
+                    whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                    {ev.title}{ev.time && <span style={{ fontWeight:500, color:C.tm }}> · {ev.time}</span>}
+                  </div>
+                  {ev.clientNames?.length > 0 && (
+                    <div style={{ display:"flex", alignItems:"center", marginTop:"auto", paddingTop:3 }}>
+                      {ev.clientNames.slice(0, 4).map((name, ni) => (
+                        <span key={ni} title={name} style={{
+                          marginLeft: ni === 0 ? 0 : -6, cursor:"default",
+                          border:"1.5px solid #fff", borderRadius:"50%",
+                        }}>
+                          <Avatar name={name} color={CLIENT_AVATAR_COLORS[ni % CLIENT_AVATAR_COLORS.length]}
+                            size={tall ? 22 : 18}/>
+                        </span>
+                      ))}
+                      {ev.clientNames.length > 4 && (
+                        <span title={ev.clientNames.slice(4).join(", ")} style={{
+                          marginLeft:-6, width: tall ? 22 : 18, height: tall ? 22 : 18,
+                          borderRadius:"50%", border:"1.5px solid #fff",
+                          background:C.tl, color:"#fff", fontSize: tall ? 9 : 8, fontWeight:700,
+                          display:"flex", alignItems:"center", justifyContent:"center",
+                        }}>+{ev.clientNames.length - 4}</span>
+                      )}
+                    </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           ))}
           {/* Current-time indicator */}
@@ -346,19 +373,26 @@ function WeekView({ events, onEventClick }) {
   return (
     <div style={{ overflowX:"auto" }}>
       <div style={{ minWidth:650 }}>
+        {events.length === 0 && (
+          <div style={{ padding:"12px 4px 0", fontSize:12, color:C.tl }}>
+            No sessions for this instructor this week.</div>
+        )}
         {/* Day headers */}
         <div style={{ display:"flex", borderBottom:`1px solid ${C.border}` }}>
           <div style={{ width:72, flexShrink:0 }}/>
           {WEEK_DAYS.map(d => (
             <div key={d.day} style={{
               flex:1, textAlign:"center", padding:"10px 0",
-              background: d.isToday ? "#F0FDF4" : "transparent",
+              background: d.isToday ? "#F0FDF4" : d.isWeekend ? "#F8FAFC" : "transparent",
               borderLeft:`1px solid ${C.border}`,
             }}>
               <div style={{ fontSize:11, fontWeight:600, textTransform:"uppercase",
-                color: d.isToday ? C.acc : C.tm }}>{d.day}</div>
+                color: d.isToday ? C.acc : d.isWeekend ? C.tl : C.tm }}>{d.day}</div>
               <div style={{ fontSize:22, fontWeight:800,
-                color: d.isToday ? C.acc : C.dark, lineHeight:1.2 }}>{d.date}</div>
+                color: d.isToday ? C.acc : d.isWeekend ? C.tl : C.dark, lineHeight:1.2 }}>{d.date}</div>
+              {d.isWeekend && (
+                <div style={{ fontSize:9, color:C.tl, fontWeight:600 }}>Weekend</div>
+              )}
               {d.isToday && (
                 <div style={{ display:"inline-block", background:C.red,
                   color:"#fff", fontSize:9, fontWeight:700,
@@ -390,41 +424,56 @@ function WeekView({ events, onEventClick }) {
                 <div key={ri} style={{ height:ROW_H,
                   borderBottom:`1px solid ${C.border}` }}/>
               ))}
-              {events.filter(e=>e.day===di).map((ev) => (
+              {d.isWeekend && (
+                <div style={{
+                  position:"absolute", top:0, left:0, right:0, bottom:0,
+                  background:"repeating-linear-gradient(135deg, #F1F5F9, #F1F5F9 6px, #F8FAFC 6px, #F8FAFC 12px)",
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  fontSize:12, color:C.tm, fontWeight:600, pointerEvents:"none",
+                }}>Weekend</div>
+              )}
+              {!d.isWeekend && events.filter(e=>e.day===di).map((ev) => {
+                const tall = (ev.endRow - ev.startRow) >= 2;
+                return (
                 <div key={ev.id} onClick={() => onEventClick(ev)} style={{
                   position:"absolute",
                   top:ev.startRow*ROW_H+3,
                   height:(ev.endRow-ev.startRow)*ROW_H-6,
                   left:4, right:4,
                   background:ev.color, border:`1.5px solid ${ev.border}`,
-                  borderRadius:10, padding:"6px 8px",
+                  borderRadius:10, padding:"4px 6px",
                   cursor:"pointer", overflow:"hidden",
+                  display:"flex", flexDirection:"column",
                 }}>
-                  {ev.isLeave ? (
-                    <div style={{ fontSize:12, color:C.tm,
-                      fontWeight:600, marginTop:12 }}>Leave</div>
-                  ) : (
-                    <>
-                      <div style={{ fontSize:10, color:C.tm,
-                        marginBottom:4 }}>{ev.time}</div>
-                      <div style={{ display:"flex", gap:6 }}>
-                        <div style={{ flex:1, background:"rgba(255,255,255,.75)",
-                          borderRadius:7, padding:"3px 5px", textAlign:"center" }}>
-                          <div style={{ fontSize:9, color:C.tm }}>Trainers</div>
-                          <div style={{ fontSize:16, fontWeight:800,
-                            color:C.dark }}>{ev.trainers}</div>
-                        </div>
-                        <div style={{ flex:1, background:"rgba(255,255,255,.75)",
-                          borderRadius:7, padding:"3px 5px", textAlign:"center" }}>
-                          <div style={{ fontSize:9, color:C.tm }}>Clients</div>
-                          <div style={{ fontSize:16, fontWeight:800,
-                            color:C.dark }}>{ev.clients}</div>
-                        </div>
-                      </div>
-                    </>
+                  <div style={{ fontSize:11, fontWeight:700, color:C.dark,
+                    whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                    {ev.title || "Session"}
+                    {ev.time && <span style={{ fontWeight:500, color:C.tm }}> · {ev.time}</span>}
+                  </div>
+                  {ev.clientNames?.length > 0 && (
+                    <div style={{ display:"flex", alignItems:"center", marginTop:"auto", paddingTop:2 }}>
+                      {ev.clientNames.slice(0, 4).map((name, ni) => (
+                        <span key={ni} title={name} style={{
+                          marginLeft: ni === 0 ? 0 : -6, cursor:"default",
+                          border:"1.5px solid #fff", borderRadius:"50%", lineHeight:0,
+                        }}>
+                          <Avatar name={name} color={CLIENT_AVATAR_COLORS[ni % CLIENT_AVATAR_COLORS.length]}
+                            size={tall ? 22 : 18}/>
+                        </span>
+                      ))}
+                      {ev.clientNames.length > 4 && (
+                        <span title={ev.clientNames.slice(4).join(", ")} style={{
+                          marginLeft:-6, width: tall ? 22 : 18, height: tall ? 22 : 18,
+                          borderRadius:"50%", border:"1.5px solid #fff",
+                          background:C.tl, color:"#fff", fontSize: tall ? 9 : 8, fontWeight:700,
+                          display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+                        }}>+{ev.clientNames.length - 4}</span>
+                      )}
+                    </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           ))}
         </div>
@@ -442,10 +491,11 @@ function MonthView({ days }) {
       {/* Day headers */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)",
         borderBottom:`1px solid ${C.border}`, marginBottom:0 }}>
-        {MONTH_DAYS_HEADER.map(d => (
+        {MONTH_DAYS_HEADER.map((d, hi) => (
           <div key={d} style={{ textAlign:"center", padding:"10px 0",
-            fontSize:12, fontWeight:700, color:C.tm,
-            textTransform:"uppercase", letterSpacing:".05em" }}>{d}</div>
+            fontSize:12, fontWeight:700, color: hi===5 ? C.tl : C.tm,
+            textTransform:"uppercase", letterSpacing:".05em" }}>
+            {d}{hi===5 && " (Weekend)"}</div>
         ))}
       </div>
       {/* Days grid */}
@@ -455,7 +505,7 @@ function MonthView({ days }) {
             minHeight:90, padding:"6px 8px",
             border:`1px solid ${C.border}`,
             borderTop:"none",
-            background: d.isToday ? "#F0FDF4" : d.day ? "#fff" : "#FAFAFA",
+            background: d.isToday ? "#F0FDF4" : !d.day ? "#FAFAFA" : i%7===5 ? "#F8FAFC" : "#fff",
             marginLeft: i%7===0 ? 0 : -1,
           }}>
             {d.day && (
@@ -1133,13 +1183,20 @@ export default function Dashboard() {
     .map((t, i) => ({ ...t, col: i }))
     .filter((t) => selectedInstructor === "All Instructors" || t.name === selectedInstructor);
 
+  // When a specific instructor is picked, only their real booked sessions show
+  // (illustrative demo sessions have no trainer attached, so they're excluded
+  // rather than shown as if they belonged to whoever's selected).
+  const weekViewEvents = selectedInstructor === "All Instructors"
+    ? weekEvents
+    : weekEvents.filter((ev) => ev.trainerName === selectedInstructor);
+
   const renderCalendar = () => {
     switch(calView) {
       case "Day":   return <DayView events={dayEvents} onEventClick={openEventEditor("day")} instructors={dayViewInstructors}/>;
-      case "Week":  return <WeekView events={weekEvents} onEventClick={openEventEditor("week")}/>;
+      case "Week":  return <WeekView events={weekViewEvents} onEventClick={openEventEditor("week")}/>;
       case "Month": return <MonthView days={monthDays}/>;
       case "Year":  return <YearView />;
-      default:      return <WeekView events={weekEvents} onEventClick={openEventEditor("week")}/>;
+      default:      return <WeekView events={weekViewEvents} onEventClick={openEventEditor("week")}/>;
     }
   };
 

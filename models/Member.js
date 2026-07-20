@@ -1,6 +1,24 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/db");
 
+// This DB stores JSON columns as longtext (MariaDB), so mysql2 hands them
+// back as raw strings instead of parsed objects/arrays. These getters parse
+// them defensively so every consumer (routes, frontend) always sees real
+// objects/arrays, regardless of how the underlying column was created.
+function jsonField(key, defaultValue) {
+  return {
+    type: DataTypes.JSON,
+    defaultValue,
+    get() {
+      const raw = this.getDataValue(key);
+      if (typeof raw === "string") {
+        try { return JSON.parse(raw); } catch { return defaultValue; }
+      }
+      return raw == null ? defaultValue : raw;
+    },
+  };
+}
+
 const Member = sequelize.define("Member", {
   // Identity
   isCompany: { type: DataTypes.BOOLEAN, defaultValue: false },
@@ -14,12 +32,9 @@ const Member = sequelize.define("Member", {
   phoneNumber: { type: DataTypes.STRING },
 
   // Address (nested object, preserved as JSON so the frontend shape is unchanged)
-  address: {
-    type: DataTypes.JSON,
-    defaultValue: {
-      street: "", city: "", state: "", country: "United States", postalCode: "",
-    },
-  },
+  address: jsonField("address", {
+    street: "", city: "", state: "", country: "United States", postalCode: "",
+  }),
 
   // Personal Info
   gender: {
@@ -34,26 +49,20 @@ const Member = sequelize.define("Member", {
   isProspect: { type: DataTypes.BOOLEAN, defaultValue: false },
 
   // Subscriptions (nested object -> JSON)
-  subscriptions: {
-    type: DataTypes.JSON,
-    defaultValue: {
-      pilotGroupClass: false,
-      semiPrivateGroupClass: false,
-      newsAndPromos: false,
-      welcomeEmail: false,
-      whatsappNotification: false,
-    },
-  },
+  subscriptions: jsonField("subscriptions", {
+    pilotGroupClass: false,
+    semiPrivateGroupClass: false,
+    newsAndPromos: false,
+    welcomeEmail: false,
+    whatsappNotification: false,
+  }),
 
   // Emergency Contact (nested object -> JSON)
-  emergencyContact: {
-    type: DataTypes.JSON,
-    defaultValue: { name: "", relationship: "", phone: "", email: "" },
-  },
+  emergencyContact: jsonField("emergencyContact", { name: "", relationship: "", phone: "", email: "" }),
 
   // Relationships (arrays -> JSON)
-  relatedClientIds: { type: DataTypes.JSON, defaultValue: [] },
-  familyMembers: { type: DataTypes.JSON, defaultValue: [] },
+  relatedClientIds: jsonField("relatedClientIds", []),
+  familyMembers: jsonField("familyMembers", []),
 
   // Package / membership summary
   package: { type: DataTypes.STRING, defaultValue: "" },

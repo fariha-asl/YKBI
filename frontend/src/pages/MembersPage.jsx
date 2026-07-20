@@ -306,8 +306,22 @@ const Field = ({ label, children }) => (
   <div><label style={labelCls}>{label}</label>{children}</div>
 );
 
-function AddMemberForm({ onSaved, onDiscard, user, onNavClick, onLogout }) {
-  const [form, setForm] = useState(initialForm);
+function memberToForm(m) {
+  return {
+    ...initialForm,
+    ...m,
+    address: { ...initialForm.address, ...(m.address || {}) },
+    subscriptions: { ...initialForm.subscriptions, ...(m.subscriptions || {}) },
+    emergencyContact: { ...initialForm.emergencyContact, ...(m.emergencyContact || {}) },
+    relatedClientIds: m.relatedClientIds || [],
+    familyMembers: m.familyMembers || [],
+    birthday: m.birthday ? String(m.birthday).slice(0, 10) : "",
+  };
+}
+
+function AddMemberForm({ onSaved, onDiscard, user, onNavClick, onLogout, editingMember }) {
+  const isEditing = !!editingMember;
+  const [form, setForm] = useState(() => isEditing ? memberToForm(editingMember) : initialForm);
   const [relationshipQuery, setRelationshipQuery] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -349,10 +363,13 @@ function AddMemberForm({ onSaved, onDiscard, user, onNavClick, onLogout }) {
     setSubmitting(true);
     setError("");
     try {
-      const res = await api.post("/members", { ...form, status: asDraft ? "inactive" : "active" });
+      const payload = { ...form, status: asDraft ? "inactive" : "active" };
+      const res = isEditing
+        ? await api.put(`/members/${editingMember.id}`, payload)
+        : await api.post("/members", payload);
       onSaved(res.data.member);
     } catch (err) {
-      setError(err?.response?.data?.message || "Could not create member.");
+      setError(err?.response?.data?.message || `Could not ${isEditing ? "update" : "create"} member.`);
     } finally {
       setSubmitting(false);
     }
@@ -370,11 +387,12 @@ function AddMemberForm({ onSaved, onDiscard, user, onNavClick, onLogout }) {
           <span>/</span>
           <span style={{ cursor:"pointer", color:C.acc }} onClick={onDiscard}>MEMBERS</span>
           <span>/</span>
-          <span style={{ color:C.dark }}>NEW ENTRY</span>
+          <span style={{ color:C.dark }}>{isEditing ? "EDIT ENTRY" : "NEW ENTRY"}</span>
         </div>
 
         <div style={{ marginBottom:24 }}>
-          <h1 style={{ fontSize:24, fontWeight:800, color:C.dark, marginBottom:4 }}>Create Member</h1>
+          <h1 style={{ fontSize:24, fontWeight:800, color:C.dark, marginBottom:4 }}>
+            {isEditing ? "Edit Member" : "Create Member"}</h1>
           <p style={{ fontSize:13, color:C.tl }}>
             Curate and manage your high-value client network with precision and editorial
           </p>
@@ -651,7 +669,7 @@ function AddMemberForm({ onSaved, onDiscard, user, onNavClick, onLogout }) {
               padding:"11px 28px", cursor: submitting ? "default" : "pointer",
               fontSize:13, fontWeight:700, color:"#fff", fontFamily:"inherit",
               opacity: submitting ? .7 : 1,
-            }}>{submitting ? "Saving…" : "Confirm & Create Profile"}</button>
+            }}>{submitting ? "Saving…" : isEditing ? "Save Changes" : "Confirm & Create Profile"}</button>
           </div>
         </div>
       </div>
@@ -672,7 +690,7 @@ function initials(first="", last="") {
   return `${first[0]||""}${last[0]||""}`.toUpperCase();
 }
 
-function MembersDashboard({ onAddNew, user, activeNav, onNavClick, onLogout, notice }) {
+function MembersDashboard({ onAddNew, onEditMember, user, activeNav, onNavClick, onLogout, notice }) {
   const [members, setMembers] = useState([]);
   const [stats, setStats] = useState({ totalMembers:0, activeMembers:0 });
   const [pagination, setPagination] = useState({ total:0, page:1, totalPages:1 });
@@ -806,7 +824,7 @@ function MembersDashboard({ onAddNew, user, activeNav, onNavClick, onLogout, not
               <thead>
                 <tr style={{ borderBottom:`1px solid ${C.border}` }}>
                   {["Name","Client ID","Package","Session Type","Total Classes",
-                    "Service Name","Remaining Class","Package Expiry"].map(h => (
+                    "Service Name","Remaining Class","Package Expiry",""].map(h => (
                     <th key={h} style={{ padding:"12px 16px", fontSize:10, fontWeight:700,
                       letterSpacing:".08em", textTransform:"uppercase", color:C.tl }}>{h}</th>
                   ))}
@@ -814,12 +832,12 @@ function MembersDashboard({ onAddNew, user, activeNav, onNavClick, onLogout, not
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={8} style={{ padding:"40px 16px", textAlign:"center", color:C.tl }}>Loading members…</td></tr>
+                  <tr><td colSpan={9} style={{ padding:"40px 16px", textAlign:"center", color:C.tl }}>Loading members…</td></tr>
                 ) : members.length===0 ? (
-                  <tr><td colSpan={8} style={{ padding:"40px 16px", textAlign:"center", color:C.tl }}>
+                  <tr><td colSpan={9} style={{ padding:"40px 16px", textAlign:"center", color:C.tl }}>
                     No members found. Try adjusting your filters, or add a new member.</td></tr>
                 ) : members.map(m => (
-                  <tr key={m._id} style={{ borderBottom:`1px solid ${C.border}` }}>
+                  <tr key={m.id} style={{ borderBottom:`1px solid ${C.border}` }}>
                     <td style={{ padding:"12px 16px" }}>
                       <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                         <div style={{ width:34, height:34, borderRadius:"50%",
@@ -840,6 +858,13 @@ function MembersDashboard({ onAddNew, user, activeNav, onNavClick, onLogout, not
                     <td style={{ padding:"12px 16px", color:C.tm }}>{m.serviceName || "—"}</td>
                     <td style={{ padding:"12px 16px", color:C.tm }}>{m.remainingClasses ?? "—"}</td>
                     <td style={{ padding:"12px 16px", color:C.tm }}>{m.packageExpiry || "—"}</td>
+                    <td style={{ padding:"12px 16px", textAlign:"right" }}>
+                      <button onClick={() => onEditMember(m)} title="Edit member" style={{
+                        background:"#F1F5F9", border:`1px solid ${C.border}`, borderRadius:7,
+                        padding:"6px 12px", cursor:"pointer", fontSize:12, fontWeight:700,
+                        color:C.dark, fontFamily:"inherit",
+                      }}>✎ Edit</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -891,6 +916,7 @@ export default function MembersPage() {
   const [view, setView] = useState("dashboard");
   const [activeNav, setActiveNav] = useState("Members");
   const [notice, setNotice] = useState("");
+  const [editingMember, setEditingMember] = useState(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("fm_user");
@@ -914,17 +940,25 @@ export default function MembersPage() {
   }, [navigate]);
 
   const handleSaved = useCallback((member) => {
+    const wasEditing = !!editingMember;
     setView("dashboard");
-    setNotice(`${member.firstName} ${member.lastName} was added to Members.`);
+    setEditingMember(null);
+    setNotice(`${member.firstName} ${member.lastName} was ${wasEditing ? "updated" : "added to Members"}.`);
     setTimeout(() => setNotice(""), 4000);
+  }, [editingMember]);
+
+  const handleDiscard = useCallback(() => {
+    setView("dashboard");
+    setEditingMember(null);
   }, []);
 
-  if (view === "add") {
+  if (view === "add" || view === "edit") {
     return (
       <AddMemberForm
         user={user}
+        editingMember={view === "edit" ? editingMember : null}
         onSaved={handleSaved}
-        onDiscard={() => setView("dashboard")}
+        onDiscard={handleDiscard}
         onNavClick={handleNavClick}
         onLogout={handleLogout}
       />
@@ -934,6 +968,7 @@ export default function MembersPage() {
   return (
     <MembersDashboard
       onAddNew={() => setView("add")}
+      onEditMember={(m) => { setEditingMember(m); setView("edit"); }}
       user={user}
       activeNav={activeNav}
       onNavClick={handleNavClick}
